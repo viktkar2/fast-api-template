@@ -137,6 +137,9 @@ wscat -c ws://localhost:8000/api/ws/public
 src/
 ├── app.py                    # Main FastAPI application
 ├── base/
+|   ├── core/
+│   │   ├── lifespan.py       # Instantiate singleton services 
+│   │   └── dependencies.py   # Getters for available singleton services
 │   ├── auth/                 # Authentication modules
 │   │   ├── auth_core.py      # Core authentication logic
 │   │   ├── rbac.py           # Role-based access control
