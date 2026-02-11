@@ -62,6 +62,12 @@ Run the application using uv:
 uv run uvicorn src.app:app --host 0.0.0.0 --port 8000
 ```
 
+### Docker
+
+```bash
+docker compose up --build
+```
+
 The application will be available at:
 
 - **Main application**: http://localhost:8000
