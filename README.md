@@ -12,9 +12,9 @@ A FastAPI application demonstrating Azure Active Directory integration with Role
 
 ## Prerequisites
 
-- Python 3.8 or higher
+- Python 3.12 or higher
+- [uv](https://docs.astral.sh/uv/) package manager
 - Azure AD tenant with configured application
-- pip package manager
 
 ## Installation
 
@@ -25,25 +25,13 @@ A FastAPI application demonstrating Azure Active Directory integration with Role
    cd py-test-auth
    ```
 
-2. **Create a virtual environment** (recommended):
+2. **Install dependencies**:
 
    ```bash
-   python -m venv venv
-
-   # On Windows
-   venv\Scripts\activate
-
-   # On macOS/Linux
-   source venv/bin/activate
+   uv sync
    ```
 
-3. **Install dependencies**:
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Configure environment variables**:
+3. **Configure environment variables**:
 
    ```bash
    # Copy the example environment file
@@ -67,11 +55,11 @@ A FastAPI application demonstrating Azure Active Directory integration with Role
 
 ### Development Server
 
-Run the application using Uvicorn:
+Run the application using uv:
 
 ```bash
 # From the project root directory
-uvicorn src.app:app --host 0.0.0.0 --port 8000
+uv run uvicorn src.app:app --host 0.0.0.0 --port 8000
 ```
 
 The application will be available at:
