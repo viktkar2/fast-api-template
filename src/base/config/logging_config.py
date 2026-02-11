@@ -1,6 +1,9 @@
 import logging
+import os
 
+from src.base.utils.env_utils import is_local_development
 from src.base.middleware.correlation_middleware import CorrelationFilter
+from src.base.config.splunk_handler import AsyncSplunkHECHandler
 
 
 class ColoredFormatter(logging.Formatter):
@@ -42,6 +45,8 @@ class ColoredFormatter(logging.Formatter):
 class LoggingConfig:
     """Configuration class for application logging setup."""
 
+    splunk_handler: AsyncSplunkHECHandler | None = None
+
     @staticmethod
     def setup_logging(log_level: int = logging.INFO) -> None:
         """
@@ -55,17 +60,59 @@ class LoggingConfig:
 
         # Only add handlers if none exist to avoid duplicates
         if not logger.hasHandlers():
-            handler = logging.StreamHandler()
-
-            format_string = (
-                "%(asctime)s | %(colored_levelname)s |%(filename_only)s | %(message)s"
-            )
-            formatter = ColoredFormatter(format_string, datefmt="%Y-%m-%d %H:%M:%S")
-
-            handler.setFormatter(formatter)
-
             # Add correlation filter to include correlation ID in logs
             correlation_filter = CorrelationFilter()
-            handler.addFilter(correlation_filter)
+            filters = [correlation_filter]
 
-            logger.addHandler(handler)
+            LoggingConfig.add_console_logging(logger, filters)
+
+            # Add Splunk logging if not local development
+            if not is_local_development():
+                LoggingConfig.add_splunk_logging(logger, filters)
+
+    @staticmethod
+    def add_console_logging(
+        logger: logging.Logger, filters: list[logging.Filter]
+    ) -> None:
+        # Console handler with colored output
+        handler = logging.StreamHandler()
+
+        format_string = (
+            "%(asctime)s | %(colored_levelname)s |%(filename_only)s | %(message)s"
+        )
+        formatter = ColoredFormatter(format_string, datefmt="%Y-%m-%d %H:%M:%S")
+        handler.setFormatter(formatter)
+
+        for filter in filters:
+            handler.addFilter(filter)
+
+        logger.addHandler(handler)
+
+    @staticmethod
+    def add_splunk_logging(
+        logger: logging.Logger, filters: list[logging.Filter]
+    ) -> None:
+        # Splunk HEC handler (requires SPLUNK_TOKEN to be configured)
+        splunk_token = os.getenv("SPLUNK_TOKEN", "")
+        host = os.getenv("SPLUNK_HOST", "")
+        url = os.getenv("SPLUNK_URL", "")
+        application_name = os.getenv(
+            "SPLUNK_APPLICATION_NAME", "sidekick-user-management-api"
+        )
+
+        if not (splunk_token and host and url):
+            logger.warning(
+                "Splunk logging is enabled but SPLUNK_TOKEN, SPLUNK_HOST, or SPLUNK_URL is not set. Skipping Splunk logging setup."
+            )
+            return
+
+        LoggingConfig.splunk_handler = AsyncSplunkHECHandler(
+            host=host,
+            token=splunk_token,
+            url=url,
+            application_name=application_name,
+        )
+        for filter in filters:
+            LoggingConfig.splunk_handler.addFilter(filter)
+
+        logger.addHandler(LoggingConfig.splunk_handler)

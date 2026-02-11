@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends
 from src.domain.services.example_service import ExampleService
 from src.base.core.dependencies import get_example_service
@@ -5,10 +6,12 @@ from src.domain.models.models import PrivateResponse
 from src.base.auth.rbac import require_roles_and_scopes
 
 router = APIRouter(prefix="/test", tags=["Test Auth"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/public")
 async def public_endpoint():
+    logger.info("Public endpoint accessed")
     return {"status": "success", "message": "Public endpoint accessed successfully"}
 
 
