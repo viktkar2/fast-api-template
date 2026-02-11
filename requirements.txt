@@ -1,6 +1,0 @@
-fastapi
-uvicorn[standard]
-python-dotenv
-python-jose[cryptography]
-requests
-aiohttp
