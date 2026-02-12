@@ -37,16 +37,7 @@ class User(BaseModel):
         default_factory=list,
         description="List of scopes/permissions granted to the user",
     )
-
-    class Config:
-        """Pydantic model configuration."""
-
-        json_schema_extra = {
-            "example": {
-                "id": "12345678-1234-1234-1234-123456789012",
-                "email": "user@example.com",
-                "name": "John Doe",
-                "roles": ["admin", "user"],
-                "scopes": ["read", "write"],
-            }
-        }
+    is_superadmin: bool = Field(
+        default=False,
+        description="Whether the user has superadmin privileges (from Entra ID role)",
+    )
