@@ -12,6 +12,7 @@ from src.base.middleware.global_exception_handler_middleware import (
 )
 from src.base.middleware.jwt_middleware import JWTMiddleware
 from src.base.routes.health import router as health_router
+from src.domain.routes.group_routes import router as group_router
 from src.domain.routes.rest_routes_example import router as rest_router
 
 # Load environment variables
@@ -36,4 +37,5 @@ app.add_middleware(GlobalExceptionHandlerMiddleware)
 
 # --- Routes ---
 app.include_router(health_router, prefix="/api")
+app.include_router(group_router, prefix="/api")
 app.include_router(rest_router, prefix="/api")

@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.base.models.user import User
 from src.domain.services.example_service import ExampleService
+from src.domain.services.group_service import GroupService
 from src.domain.services.user_service import UserService
 
 logger = logging.getLogger(__name__)
@@ -14,6 +15,11 @@ logger = logging.getLogger(__name__)
 def get_example_service(request: Request) -> ExampleService:
     """Return the singleton ExampleService instance from app state."""
     return request.app.state.example_service
+
+
+def get_group_service(request: Request) -> GroupService:
+    """Return the singleton GroupService instance from app state."""
+    return request.app.state.group_service
 
 
 def get_user_service(request: Request) -> UserService:

@@ -7,6 +7,7 @@ import src.domain.models.entities  # noqa: F401 — register ORM models with Bas
 from src.base.config.database import close_db, init_db
 from src.base.config.logging_config import LoggingConfig
 from src.domain.services.example_service import ExampleService
+from src.domain.services.group_service import GroupService
 from src.domain.services.user_service import UserService
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,7 @@ async def lifespan(app: FastAPI):
     # Initialize registries/services
     logger.info("Initializing services...")
     app.state.example_service = ExampleService()
+    app.state.group_service = GroupService()
     app.state.user_service = UserService()
 
     logger.info("Services initialized.")
