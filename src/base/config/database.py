@@ -9,8 +9,6 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.orm import DeclarativeBase
 
-from src.base.utils.env_utils import is_local_development
-
 logger = logging.getLogger(__name__)
 
 
@@ -31,9 +29,6 @@ def _get_database_url() -> str:
 async def init_db() -> tuple[AsyncEngine, async_sessionmaker[AsyncSession]]:
     """Initialize the database engine and session factory.
 
-    In non-production environments, auto-creates all tables registered
-    with Base.metadata.
-
     Returns:
         Tuple of (engine, session_factory).
     """
@@ -50,11 +45,8 @@ async def init_db() -> tuple[AsyncEngine, async_sessionmaker[AsyncSession]]:
     engine = create_async_engine(url, connect_args=connect_args)
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
 
-    # Auto-create tables in non-production environments
-    if is_local_development():
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        logger.info("Database tables created.")
+    # Schema management is handled by Alembic migrations.
+    # Run `uv run alembic upgrade head` to apply pending migrations.
 
     return engine, session_factory
 

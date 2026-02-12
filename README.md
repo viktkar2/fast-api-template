@@ -1,47 +1,30 @@
-# FastAPI + Azure AD RBAC Authentication
+# Sidekick User Management API
 
-A FastAPI application demonstrating Azure Active Directory integration with Role-Based Access Control (RBAC) and WebSocket support.
-
-## Features
-
-- FastAPI web framework
-- Azure AD authentication with JWT tokens
-- Role-Based Access Control (RBAC)
-- WebSocket endpoints with authentication
-- Public and private endpoints
+Multi-tenant authorization microservice for the Sidekick agent platform. Manages groups, group memberships with scoped roles, and agent visibility across groups.
 
 ## Prerequisites
 
-- Python 3.12 or higher
+- Python 3.12+
 - [uv](https://docs.astral.sh/uv/) package manager
 - Azure AD tenant with configured application
 
-## Installation
+## Setup
 
-1. **Clone the repository** (if not already done):
-
-   ```bash
-   git clone <repository-url>
-   cd py-test-auth
-   ```
-
-2. **Install dependencies**:
+1. **Install dependencies**:
 
    ```bash
    uv sync
    ```
 
-3. **Configure environment variables**:
+2. **Configure environment variables**:
 
    ```bash
-   # Copy the example environment file
    copy .env.example .env
    ```
 
-   Edit `.env` file with your Azure AD configuration
+   Edit `.env` with your Azure AD and database configuration:
 
    ```bash
-   # Application environment
    ENVIRONMENT=development
 
    # Azure AD
@@ -49,16 +32,22 @@ A FastAPI application demonstrating Azure Active Directory integration with Role
    AZURE_CLIENT_ID=your-client-id
    AZURE_AUDIENCE=your-audience
    AZURE_SCOPE=your-scope
+
+   # Database (optional — defaults to local SQLite)
+   # DATABASE_URL=postgresql+asyncpg://user:password@host:5432/dbname
    ```
 
-## Running the Application
+3. **Apply database migrations**:
+
+   ```bash
+   uv run alembic upgrade head
+   ```
+
+## Running
 
 ### Development Server
 
-Run the application using uv:
-
 ```bash
-# From the project root directory
 uv run uvicorn src.app:app --host 0.0.0.0 --port 8000
 ```
 
@@ -70,93 +59,72 @@ docker compose up --build
 
 The application will be available at:
 
-- **Main application**: http://localhost:8000
-- **API documentation**: http://localhost:8000/docs
+- **API**: http://localhost:8000
+- **Docs**: http://localhost:8000/docs
 
-## API Endpoints
+## Database Migrations
 
-### HTTP Endpoints
-
-- **GET /api/public** - Public endpoint, no authentication required
-- **GET /api/private** - Private endpoint, requires valid JWT token
-
-### WebSocket Endpoints
-
-- **WS /api/ws/public** - Public WebSocket, no authentication required
-- **WS /api/ws/private** - Private WebSocket, requires authentication
-
-## Authentication
-
-The application uses Azure AD JWT tokens for authentication. Include the token in the Authorization header:
+Schema changes are managed with [Alembic](https://alembic.sqlalchemy.org/). See [docs/database-migrations.md](docs/database-migrations.md) for full details.
 
 ```bash
-Authorization: Bearer <your-jwt-token>
+# Apply pending migrations
+uv run alembic upgrade head
+
+# Generate a migration after changing a model
+uv run alembic revision --autogenerate -m "describe the change"
+
+# Show current revision
+uv run alembic current
 ```
 
-## Testing the Application
-
-### Test Public Endpoint
+## Testing
 
 ```bash
-curl http://localhost:8000/api/public
-```
+# Run all tests
+uv run pytest
 
-### Test Private Endpoint
+# Run a specific test file
+uv run pytest tests/test_authorization.py -v
 
-```bash
-curl -H "Authorization: Bearer <your-token>" http://localhost:8000/api/private
-```
+# Run linter
+uv run ruff check src/
 
-### WebSocket Testing
-
-You can test WebSocket endpoints using tools like:
-
-- WebSocket clients (e.g., wscat)
-- Browser developer tools
-- Postman
-
-Example with wscat:
-
-```bash
-# Install wscat if not already installed
-npm install -g wscat
-
-# Test public WebSocket
-wscat -c ws://localhost:8000/api/ws/public
+# Run formatter
+uv run ruff format src/
 ```
 
 ## Project Structure
 
 ```
 src/
-├── app.py                    # Main FastAPI application
-├── base/
-|   ├── core/
-│   │   ├── lifespan.py       # Instantiate singleton services 
-│   │   └── dependencies.py   # Getters for available singleton services
-│   ├── auth/                 # Authentication modules
-│   │   ├── auth_core.py      # Core authentication logic
-│   │   ├── rbac.py           # Role-based access control
-│   │   └── websocket_auth.py # WebSocket authentication
-│   ├── decorators/           # Custom decorators
-│   └── middleware/           # Custom middleware
-│       └── jwt_middleware.py # JWT middleware
-└── domain/
-    ├── models/               # Data models
-    │   └── models.py
-    └── routes/               # API routes
-        ├── routes.py         # HTTP routes
-        └── ws_routes.py      # WebSocket routes
+├── app.py                              # FastAPI app entry point
+├── base/                               # Shared infrastructure (no domain logic)
+│   ├── auth/                           # JWT validation, token-level RBAC
+│   ├── config/                         # Logging, OpenAPI, Splunk, database
+│   ├── core/                           # App lifespan, dependency injection
+│   ├── middleware/                      # JWT and correlation ID middleware
+│   └── utils/                          # Environment helpers
+└── domain/                             # Business logic
+    ├── auth/                           # Domain authorization (group admin checks)
+    ├── models/                         # Pydantic schemas, SQLAlchemy entities
+    ├── routes/                         # API route handlers
+    └── services/                       # Business logic services
+
+alembic/                                # Database migration scripts
+├── env.py                              # Migration environment config
+└── versions/                           # Versioned migration files
+
+tests/                                  # Test suite
+docs/                                   # Documentation
 ```
 
-## Troubleshooting
+## Authentication
 
-### Common Issues
+The application uses Azure AD JWT tokens. Include the token in the Authorization header:
 
-1. **Import errors**: Ensure you're running from the project root directory
-2. **Authentication failures**: Verify Azure AD configuration in `.env` file
-3. **Port conflicts**: Change the port using `--port` parameter
+```
+Authorization: Bearer <your-jwt-token>
+```
 
-### Logs
-
-The application logs are configured to output to the console. Check the terminal output for debugging information.
+- **Authentication** (identity) is handled by Entra ID
+- **Authorization** (permissions) is handled by this microservice — see `src/domain/auth/`
