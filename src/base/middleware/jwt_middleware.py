@@ -7,6 +7,7 @@ from jose import ExpiredSignatureError, JWTError
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from src.base.auth.auth_core import validate_jwt_token
+from src.base.middleware.request_context import set_request_context
 from src.base.models.role import Role
 from src.base.models.user import User
 
@@ -68,6 +69,8 @@ class JWTMiddleware(BaseHTTPMiddleware):
                 scopes=claims.get("scp", "").split() if claims.get("scp") else [],
                 is_superadmin=Role.ADMIN.value in roles,
             )
+
+            set_request_context("user_object_id", request.state.user.id)
 
             logger.info("Authentication successful for user")
 

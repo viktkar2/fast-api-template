@@ -2,7 +2,7 @@ import logging
 import os
 
 from src.base.config.splunk_handler import AsyncSplunkHECHandler
-from src.base.middleware.correlation_middleware import CorrelationFilter
+from src.base.middleware.request_context import RequestContextFilter
 from src.base.utils.env_utils import is_local_development
 
 
@@ -61,8 +61,8 @@ class LoggingConfig:
         # Only add handlers if none exist to avoid duplicates
         if not logger.hasHandlers():
             # Add correlation filter to include correlation ID in logs
-            correlation_filter = CorrelationFilter()
-            filters = [correlation_filter]
+            context_filter = RequestContextFilter()
+            filters = [context_filter]
 
             LoggingConfig.add_console_logging(logger, filters)
 
