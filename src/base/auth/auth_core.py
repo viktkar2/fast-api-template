@@ -1,11 +1,13 @@
 import logging
 import os
 from functools import lru_cache
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 import requests
 from dotenv import load_dotenv
 from jose import JWTError, jwt
+
+from src.base.models.role import Role
 
 # --- Env setup ---
 load_dotenv()
@@ -61,9 +63,10 @@ def validate_jwt_token(token: str) -> Dict[str, Any]:
 
 
 def check_roles_and_scopes(
-    claims: Dict[str, Any],
-    required_roles: List[List[str]] = None,
-    required_scopes: List[List[str]] = None,
+    user_roles: list[str],
+    user_scopes: list[str],
+    required_roles: list[list[Role]] = None,
+    required_scopes: list[list[str]] = None,
 ) -> bool:
     """
     Check if claims contain at least one valid combination of roles and scopes.
@@ -71,11 +74,9 @@ def check_roles_and_scopes(
     required_roles = required_roles or []
     required_scopes = required_scopes or []
 
-    user_roles = claims.get("roles", [])
-    user_scopes = claims.get("scp", "").split() if claims.get("scp") else []
-
+    # Convert Role enums to string values for comparison with user_roles
     roles_ok = not required_roles or any(
-        all(r in user_roles for r in group) for group in required_roles
+        all(r.value in user_roles for r in group) for group in required_roles
     )
     scopes_ok = not required_scopes or any(
         all(s in user_scopes for s in group) for group in required_scopes

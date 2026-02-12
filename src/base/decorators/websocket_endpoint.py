@@ -1,10 +1,13 @@
 import functools
 import logging
+
 from fastapi import WebSocket, WebSocketDisconnect, status
+
 from src.base.auth.websocket_auth import (
     authenticate_websocket,
     check_websocket_permissions,
 )
+from src.base.models.user import User
 
 logger = logging.getLogger()
 
@@ -31,14 +34,26 @@ def websocket_endpoint(required_roles=None, required_scopes=None, public=False):
                 # Public WS doesn't require auth
                 if not public:
                     claims = authenticate_websocket(websocket)
+
+                    # Create user object consistent with HTTP middleware
+                    user = User(
+                        id=claims.get("oid"),
+                        email=claims.get("email") or claims.get("preferred_username"),
+                        name=claims.get("name"),
+                        roles=claims.get("roles", []),
+                        scopes=claims.get("scp", "").split()
+                        if claims.get("scp")
+                        else [],
+                    )
+
                     if required_roles or required_scopes:
                         check_websocket_permissions(
-                            claims,
+                            user,
                             required_roles=required_roles,
                             required_scopes=required_scopes,
                         )
-                websocket.state.claims = claims
 
+                websocket.state.user = user
                 await websocket.accept()
 
                 # Call the actual endpoint handler
