@@ -5,6 +5,7 @@ from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.base.models.user import User
+from src.domain.services.admin_service import AdminService
 from src.domain.services.agent_service import AgentService
 from src.domain.services.example_service import ExampleService
 from src.domain.services.group_service import GroupService
@@ -13,6 +14,11 @@ from src.domain.services.permission_service import PermissionService
 from src.domain.services.user_service import UserService
 
 logger = logging.getLogger(__name__)
+
+
+def get_admin_service(request: Request) -> AdminService:
+    """Return the singleton AdminService instance from app state."""
+    return request.app.state.admin_service
 
 
 def get_agent_service(request: Request) -> AgentService:

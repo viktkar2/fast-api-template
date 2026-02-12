@@ -193,9 +193,7 @@ async def get_admin_groups(
     return GroupListResponse(groups=[GroupResponse.model_validate(g) for g in groups])
 
 
-@router.get(
-    "/users/{entra_object_id}/agents", response_model=UserAgentListResponse
-)
+@router.get("/users/{entra_object_id}/agents", response_model=UserAgentListResponse)
 async def get_user_agents(
     entra_object_id: str,
     user: User = Depends(get_current_user),
@@ -217,9 +215,7 @@ async def get_user_agents(
     # Check cache first
     cached = await permission_service.get_cached_user_agents(entra_object_id)
     if cached is not None:
-        return UserAgentListResponse(
-            agents=[UserAgentResponse(**a) for a in cached]
-        )
+        return UserAgentListResponse(agents=[UserAgentResponse(**a) for a in cached])
 
     # Only treat as superadmin when querying own agents
     querying_self = user.id == entra_object_id
@@ -235,6 +231,4 @@ async def get_user_agents(
     # Cache the result
     await permission_service.set_cached_user_agents(entra_object_id, agents)
 
-    return UserAgentListResponse(
-        agents=[UserAgentResponse(**a) for a in agents]
-    )
+    return UserAgentListResponse(agents=[UserAgentResponse(**a) for a in agents])

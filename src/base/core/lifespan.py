@@ -7,6 +7,8 @@ import src.domain.models.entities  # noqa: F401 — register ORM models with Bas
 from src.base.config.database import close_db, init_db
 from src.base.config.logging_config import LoggingConfig
 from src.base.config.redis import close_redis, init_redis
+from src.base.config.redis_cache import RedisCache
+from src.domain.services.admin_service import AdminService
 from src.domain.services.agent_service import AgentService
 from src.domain.services.example_service import ExampleService
 from src.domain.services.group_service import GroupService
@@ -38,11 +40,13 @@ async def lifespan(app: FastAPI):
 
     # Initialize registries/services
     logger.info("Initializing services...")
+    cache = RedisCache(redis_client)
+    app.state.admin_service = AdminService()
     app.state.agent_service = AgentService()
     app.state.example_service = ExampleService()
     app.state.group_service = GroupService()
     app.state.membership_service = MembershipService()
-    app.state.permission_service = PermissionService(redis_client)
+    app.state.permission_service = PermissionService(cache)
     app.state.user_service = UserService()
 
     logger.info("Services initialized.")

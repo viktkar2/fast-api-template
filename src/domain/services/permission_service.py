@@ -1,10 +1,10 @@
 import json
 import logging
 
-from redis.asyncio import Redis
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.base.config.redis_cache import RedisCache
 from src.domain.models.entities.enums import GroupRole
 from src.domain.models.entities.group_agent import GroupAgent
 from src.domain.models.entities.group_membership import GroupMembership
@@ -16,32 +16,14 @@ CACHE_TTL_SECONDS = 60
 
 
 class PermissionService:
-    def __init__(self, redis_client: Redis | None = None):
-        self._redis = redis_client
+    def __init__(self, cache: RedisCache):
+        self._cache = cache
 
     def _cache_key(self, user_id: str, agent_id: int, action: str) -> str:
         return f"perm:{user_id}:{agent_id}:{action}"
 
-    async def _get_cached(self, key: str) -> tuple[bool, str | None] | None:
-        if not self._redis:
-            return None
-        try:
-            value = await self._redis.get(key)
-            if value is not None:
-                data = json.loads(value)
-                return data["allowed"], data.get("role")
-        except Exception:
-            logger.warning("Redis cache read failed", exc_info=True)
-        return None
-
-    async def _set_cached(self, key: str, allowed: bool, role: str | None) -> None:
-        if not self._redis:
-            return
-        try:
-            value = json.dumps({"allowed": allowed, "role": role})
-            await self._redis.set(key, value, ex=CACHE_TTL_SECONDS)
-        except Exception:
-            logger.warning("Redis cache write failed", exc_info=True)
+    def _user_agents_key(self, user_id: str) -> str:
+        return f"user_agents:{user_id}"
 
     async def check_permission(
         self,
@@ -60,9 +42,10 @@ class PermissionService:
             return True, "superadmin"
 
         key = self._cache_key(user_id, agent_id, action.value)
-        cached = await self._get_cached(key)
+        cached = await self._cache.get(key)
         if cached is not None:
-            return cached
+            data = json.loads(cached)
+            return data["allowed"], data.get("role")
 
         # Query DB: join group_memberships with group_agents on group_id
         stmt = (
@@ -81,96 +64,35 @@ class PermissionService:
         roles = [row[0] for row in result.all()]
 
         if not roles:
-            await self._set_cached(key, False, None)
+            value = json.dumps({"allowed": False, "role": None})
+            await self._cache.set(key, value, CACHE_TTL_SECONDS)
             return False, None
 
         # Determine highest role: admin > user
-        if GroupRole.ADMIN in roles:
-            highest = "admin"
-        else:
-            highest = "user"
+        highest = "admin" if GroupRole.ADMIN in roles else "user"
 
-        await self._set_cached(key, True, highest)
+        value = json.dumps({"allowed": True, "role": highest})
+        await self._cache.set(key, value, CACHE_TTL_SECONDS)
         return True, highest
-
-    def _user_agents_key(self, user_id: str) -> str:
-        return f"user_agents:{user_id}"
 
     async def get_cached_user_agents(self, user_id: str) -> list[dict] | None:
         """Return cached user agents list, or None if not cached."""
-        if not self._redis:
-            return None
-        try:
-            value = await self._redis.get(self._user_agents_key(user_id))
-            if value is not None:
-                return json.loads(value)
-        except Exception:
-            logger.warning("Redis cache read failed for user agents", exc_info=True)
+        value = await self._cache.get(self._user_agents_key(user_id))
+        if value is not None:
+            return json.loads(value)
         return None
 
-    async def set_cached_user_agents(
-        self, user_id: str, agents: list[dict]
-    ) -> None:
+    async def set_cached_user_agents(self, user_id: str, agents: list[dict]) -> None:
         """Cache the user agents list."""
-        if not self._redis:
-            return
-        try:
-            value = json.dumps(agents, default=str)
-            await self._redis.set(
-                self._user_agents_key(user_id), value, ex=CACHE_TTL_SECONDS
-            )
-        except Exception:
-            logger.warning("Redis cache write failed for user agents", exc_info=True)
+        value = json.dumps(agents, default=str)
+        await self._cache.set(self._user_agents_key(user_id), value, CACHE_TTL_SECONDS)
 
     async def invalidate_user_permissions(self, user_id: str) -> None:
         """Delete all cached permissions and user agents list for a user."""
-        if not self._redis:
-            return
-        try:
-            pattern = f"perm:{user_id}:*"
-            cursor = 0
-            while True:
-                cursor, keys = await self._redis.scan(
-                    cursor=cursor, match=pattern, count=100
-                )
-                if keys:
-                    await self._redis.delete(*keys)
-                if cursor == 0:
-                    break
-            # Also invalidate user agents cache
-            await self._redis.delete(self._user_agents_key(user_id))
-        except Exception:
-            logger.warning(
-                "Redis invalidation failed for user %s", user_id, exc_info=True
-            )
+        await self._cache.delete_pattern(f"perm:{user_id}:*")
+        await self._cache.delete(self._user_agents_key(user_id))
 
     async def invalidate_agent_permissions(self, agent_id: int) -> None:
         """Delete all cached permissions for an agent and affected user agent lists."""
-        if not self._redis:
-            return
-        try:
-            pattern = f"perm:*:{agent_id}:*"
-            cursor = 0
-            while True:
-                cursor, keys = await self._redis.scan(
-                    cursor=cursor, match=pattern, count=100
-                )
-                if keys:
-                    await self._redis.delete(*keys)
-                if cursor == 0:
-                    break
-            # Invalidate all user agent list caches since we can't know
-            # which users are affected by agent-group changes
-            cursor = 0
-            while True:
-                cursor, keys = await self._redis.scan(
-                    cursor=cursor, match="user_agents:*", count=100
-                )
-                if keys:
-                    await self._redis.delete(*keys)
-                if cursor == 0:
-                    break
-        except Exception:
-            logger.warning(
-                "Redis invalidation failed for agent %s", agent_id, exc_info=True
-            )
+        await self._cache.delete_pattern(f"perm:*:{agent_id}:*")
+        await self._cache.delete_pattern("user_agents:*")

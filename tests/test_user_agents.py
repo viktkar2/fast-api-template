@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.base.config.redis_cache import RedisCache
 from src.base.models.user import User
 from src.domain.models.entities.agent import Agent
 from src.domain.models.entities.enums import GroupRole
@@ -39,7 +40,7 @@ def app(db_session_factory):
     test_app = FastAPI()
     test_app.state.db_session_factory = db_session_factory
     test_app.state.agent_service = AgentService()
-    test_app.state.permission_service = PermissionService(redis_client=None)
+    test_app.state.permission_service = PermissionService(cache=RedisCache())
     test_app.state.user_service = UserService()
     test_app.add_middleware(FakeAuthMiddleware)
     test_app.include_router(router, prefix="/api")
