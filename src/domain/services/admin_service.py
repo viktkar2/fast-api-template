@@ -111,6 +111,13 @@ class AdminService:
 
         await session.refresh(agent)
 
+        logger.info(
+            "Bulk-updated agent_id=%s group assignments to group_ids=%s by=%s",
+            agent_id,
+            group_ids,
+            updated_by,
+        )
+
         return {
             "id": agent.id,
             "agent_external_id": agent.agent_external_id,

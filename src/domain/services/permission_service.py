@@ -91,8 +91,10 @@ class PermissionService:
         """Delete all cached permissions and user agents list for a user."""
         await self._cache.delete_pattern(f"perm:{user_id}:*")
         await self._cache.delete(self._user_agents_key(user_id))
+        logger.info("Invalidated permission cache for user_id=%s", user_id)
 
     async def invalidate_agent_permissions(self, agent_id: int) -> None:
         """Delete all cached permissions for an agent and affected user agent lists."""
         await self._cache.delete_pattern(f"perm:*:{agent_id}:*")
         await self._cache.delete_pattern("user_agents:*")
+        logger.info("Invalidated permission cache for agent_id=%s", agent_id)

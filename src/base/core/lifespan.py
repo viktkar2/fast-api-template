@@ -10,7 +10,6 @@ from src.base.config.redis import close_redis, init_redis
 from src.base.config.redis_cache import RedisCache
 from src.domain.services.admin_service import AdminService
 from src.domain.services.agent_service import AgentService
-from src.domain.services.example_service import ExampleService
 from src.domain.services.group_service import GroupService
 from src.domain.services.membership_service import MembershipService
 from src.domain.services.permission_service import PermissionService
@@ -43,7 +42,6 @@ async def lifespan(app: FastAPI):
     cache = RedisCache(redis_client)
     app.state.admin_service = AdminService()
     app.state.agent_service = AgentService()
-    app.state.example_service = ExampleService()
     app.state.group_service = GroupService()
     app.state.membership_service = MembershipService()
     app.state.permission_service = PermissionService(cache)

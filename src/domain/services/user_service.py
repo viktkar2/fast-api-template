@@ -35,7 +35,6 @@ class UserService:
         else:
             user.display_name = display_name
             user.email = email
-            logger.debug("Updated local user for entra_object_id=%s", entra_object_id)
 
         await session.commit()
         return user

@@ -75,6 +75,11 @@ class MembershipService:
         if membership.role == GroupRole.ADMIN:
             admin_count = await self._count_admins(session, group_id)
             if admin_count <= 1:
+                logger.warning(
+                    "Blocked removal of last admin entra_object_id=%s from group_id=%s",
+                    entra_object_id,
+                    group_id,
+                )
                 raise ValueError("last_admin")
 
         await session.delete(membership)
@@ -108,6 +113,11 @@ class MembershipService:
         if membership.role == GroupRole.ADMIN and new_role == GroupRole.USER:
             admin_count = await self._count_admins(session, group_id)
             if admin_count <= 1:
+                logger.warning(
+                    "Blocked demotion of last admin entra_object_id=%s in group_id=%s",
+                    entra_object_id,
+                    group_id,
+                )
                 raise ValueError("last_admin")
 
         membership.role = new_role

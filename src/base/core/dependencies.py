@@ -7,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.base.models.user import User
 from src.domain.services.admin_service import AdminService
 from src.domain.services.agent_service import AgentService
-from src.domain.services.example_service import ExampleService
 from src.domain.services.group_service import GroupService
 from src.domain.services.membership_service import MembershipService
 from src.domain.services.permission_service import PermissionService
@@ -24,11 +23,6 @@ def get_admin_service(request: Request) -> AdminService:
 def get_agent_service(request: Request) -> AgentService:
     """Return the singleton AgentService instance from app state."""
     return request.app.state.agent_service
-
-
-def get_example_service(request: Request) -> ExampleService:
-    """Return the singleton ExampleService instance from app state."""
-    return request.app.state.example_service
 
 
 def get_group_service(request: Request) -> GroupService:
