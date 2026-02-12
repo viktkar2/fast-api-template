@@ -9,6 +9,7 @@ from src.domain.services.agent_service import AgentService
 from src.domain.services.example_service import ExampleService
 from src.domain.services.group_service import GroupService
 from src.domain.services.membership_service import MembershipService
+from src.domain.services.permission_service import PermissionService
 from src.domain.services.user_service import UserService
 
 logger = logging.getLogger(__name__)
@@ -32,6 +33,11 @@ def get_group_service(request: Request) -> GroupService:
 def get_membership_service(request: Request) -> MembershipService:
     """Return the singleton MembershipService instance from app state."""
     return request.app.state.membership_service
+
+
+def get_permission_service(request: Request) -> PermissionService:
+    """Return the singleton PermissionService instance from app state."""
+    return request.app.state.permission_service
 
 
 def get_user_service(request: Request) -> UserService:

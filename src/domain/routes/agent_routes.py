@@ -8,6 +8,7 @@ from src.base.core.dependencies import (
     get_agent_service,
     get_current_user,
     get_db_session,
+    get_permission_service,
 )
 from src.base.models.user import User
 from src.domain.auth.authorization import require_group_admin
@@ -21,6 +22,7 @@ from src.domain.models.entities.enums import GroupRole
 from src.domain.models.entities.group_membership import GroupMembership
 from src.domain.models.group_schemas import GroupListResponse, GroupResponse
 from src.domain.services.agent_service import AgentService
+from src.domain.services.permission_service import PermissionService
 
 router = APIRouter(tags=["Agent Management"])
 logger = logging.getLogger(__name__)
@@ -105,6 +107,7 @@ async def assign_agent_to_group(
     user: User = Depends(require_group_admin()),
     session: AsyncSession = Depends(get_db_session),
     service: AgentService = Depends(get_agent_service),
+    permission_service: PermissionService = Depends(get_permission_service),
 ):
     """Assign an existing agent to an additional group (group admin or superadmin)."""
     try:
@@ -116,6 +119,8 @@ async def assign_agent_to_group(
         )
     except ValueError as e:
         _handle_service_error(e)
+
+    await permission_service.invalidate_agent_permissions(body.agent_id)
 
     # Return the agent details
     agents = await service.list_agents_in_group(session, group_id)
@@ -134,6 +139,7 @@ async def remove_agent_from_group(
     user: User = Depends(require_group_admin()),
     session: AsyncSession = Depends(get_db_session),
     service: AgentService = Depends(get_agent_service),
+    permission_service: PermissionService = Depends(get_permission_service),
 ):
     """Remove an agent from a group (group admin or superadmin)."""
     try:
@@ -142,6 +148,8 @@ async def remove_agent_from_group(
         )
     except ValueError as e:
         _handle_service_error(e)
+
+    await permission_service.invalidate_agent_permissions(agent_id)
 
 
 @router.get("/groups/{group_id}/agents", response_model=AgentListResponse)

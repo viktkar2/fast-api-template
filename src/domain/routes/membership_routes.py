@@ -3,7 +3,11 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.base.core.dependencies import get_db_session, get_membership_service
+from src.base.core.dependencies import (
+    get_db_session,
+    get_membership_service,
+    get_permission_service,
+)
 from src.base.models.user import User
 from src.domain.auth.authorization import require_group_admin
 from src.domain.models.membership_schemas import (
@@ -13,6 +17,7 @@ from src.domain.models.membership_schemas import (
     UpdateMemberRoleRequest,
 )
 from src.domain.services.membership_service import MembershipService
+from src.domain.services.permission_service import PermissionService
 
 router = APIRouter(prefix="/groups", tags=["Group Membership"])
 logger = logging.getLogger(__name__)
@@ -52,6 +57,7 @@ async def add_member(
     user: User = Depends(require_group_admin()),
     session: AsyncSession = Depends(get_db_session),
     service: MembershipService = Depends(get_membership_service),
+    permission_service: PermissionService = Depends(get_permission_service),
 ):
     """Add a member to a group (group admin or superadmin)."""
     try:
@@ -63,6 +69,8 @@ async def add_member(
         )
     except ValueError as e:
         _handle_service_error(e)
+
+    await permission_service.invalidate_user_permissions(body.entra_object_id)
 
     # Re-query to get user details for response
     members = await service.list_members(session, group_id)
@@ -99,6 +107,7 @@ async def update_member_role(
     user: User = Depends(require_group_admin()),
     session: AsyncSession = Depends(get_db_session),
     service: MembershipService = Depends(get_membership_service),
+    permission_service: PermissionService = Depends(get_permission_service),
 ):
     """Update a member's role (group admin or superadmin)."""
     try:
@@ -110,6 +119,8 @@ async def update_member_role(
         )
     except ValueError as e:
         _handle_service_error(e)
+
+    await permission_service.invalidate_user_permissions(entra_object_id)
 
     # Re-query to get user details for response
     members = await service.list_members(session, group_id)
@@ -128,6 +139,7 @@ async def remove_member(
     user: User = Depends(require_group_admin()),
     session: AsyncSession = Depends(get_db_session),
     service: MembershipService = Depends(get_membership_service),
+    permission_service: PermissionService = Depends(get_permission_service),
 ):
     """Remove a member from a group (group admin or superadmin)."""
     try:
@@ -136,3 +148,5 @@ async def remove_member(
         )
     except ValueError as e:
         _handle_service_error(e)
+
+    await permission_service.invalidate_user_permissions(entra_object_id)

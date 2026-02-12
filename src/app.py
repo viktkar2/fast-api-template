@@ -15,6 +15,7 @@ from src.base.routes.health import router as health_router
 from src.domain.routes.agent_routes import router as agent_router
 from src.domain.routes.group_routes import router as group_router
 from src.domain.routes.membership_routes import router as membership_router
+from src.domain.routes.permission_routes import router as permission_router
 from src.domain.routes.rest_routes_example import router as rest_router
 
 # Load environment variables
@@ -42,4 +43,5 @@ app.include_router(health_router, prefix="/api")
 app.include_router(agent_router, prefix="/api")
 app.include_router(group_router, prefix="/api")
 app.include_router(membership_router, prefix="/api")
+app.include_router(permission_router, prefix="/api")
 app.include_router(rest_router, prefix="/api")

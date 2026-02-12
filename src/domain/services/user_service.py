@@ -29,7 +29,9 @@ class UserService:
                 email=email,
             )
             session.add(user)
-            logger.info("Created new local user for entra_object_id=%s", entra_object_id)
+            logger.info(
+                "Created new local user for entra_object_id=%s", entra_object_id
+            )
         else:
             user.display_name = display_name
             user.email = email
