@@ -1,7 +1,12 @@
+# Authentication infrastructure: JWT validation, JWKS fetching, and
+# token-level role/scope checks.  Everything here reads from the token
+# only — no database access.  Domain-level authorization (group
+# membership checks, etc.) lives in src/domain/auth/.
+
 import logging
 import os
 from functools import lru_cache
-from typing import Any, Dict
+from typing import Any
 
 import requests
 from dotenv import load_dotenv
@@ -24,11 +29,11 @@ logger = logging.getLogger(__name__)
 
 
 @lru_cache(maxsize=1)
-def get_jwks() -> Dict[str, Any]:
+def get_jwks() -> dict[str, Any]:
     return requests.get(JWKS_URL).json()
 
 
-def validate_jwt_token(token: str) -> Dict[str, Any]:
+def validate_jwt_token(token: str) -> dict[str, Any]:
     """
     Validates a JWT and returns claims (raises JWTError/ExpiredSignatureError if invalid).
     """
@@ -59,7 +64,7 @@ def validate_jwt_token(token: str) -> Dict[str, Any]:
         raise
     except Exception as e:
         logger.error(f"Unexpected error during JWT validation: {e}")
-        raise JWTError(f"Token validation error: {e}")
+        raise JWTError(f"Token validation error: {e}") from e
 
 
 def check_roles_and_scopes(

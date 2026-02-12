@@ -1,7 +1,8 @@
 import os
-from typing import Dict, Any
-from fastapi.openapi.utils import get_openapi
+from typing import Any
+
 from fastapi import FastAPI
+from fastapi.openapi.utils import get_openapi
 
 
 class OpenAPIConfig:
@@ -12,7 +13,7 @@ class OpenAPIConfig:
         self.azure_client_id = os.getenv("AZURE_CLIENT_ID")
         self.azure_scope = os.getenv("AZURE_SCOPE")
 
-    def get_swagger_ui_init_oauth(self) -> Dict[str, Any]:
+    def get_swagger_ui_init_oauth(self) -> dict[str, Any]:
         """Get Swagger UI OAuth initialization configuration"""
         return {
             "usePkceWithAuthorizationCodeGrant": True,
@@ -20,13 +21,13 @@ class OpenAPIConfig:
             "scopes": self.azure_scope or "",
         }
 
-    def get_swagger_ui_parameters(self) -> Dict[str, Any]:
+    def get_swagger_ui_parameters(self) -> dict[str, Any]:
         """Get Swagger UI parameters"""
         return {
             "persistAuthorization": True,
         }
 
-    def create_custom_openapi_schema(self, app: FastAPI) -> Dict[str, Any]:
+    def create_custom_openapi_schema(self, app: FastAPI) -> dict[str, Any]:
         """Create custom OpenAPI schema with Microsoft OAuth security"""
         if app.openapi_schema:
             return app.openapi_schema

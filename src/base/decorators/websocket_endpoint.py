@@ -7,12 +7,17 @@ from src.base.auth.websocket_auth import (
     authenticate_websocket,
     check_websocket_permissions,
 )
+from src.base.models.role import Role
 from src.base.models.user import User
 
 logger = logging.getLogger()
 
 
-def websocket_endpoint(required_roles=None, required_scopes=None, public=False):
+def websocket_endpoint(
+    required_roles: list[list[Role]] = None,
+    required_scopes: list[list[str]] = None,
+    public=False,
+):
     """
     Decorator for WebSocket endpoints.
     Handles authentication, authorization, error handling.

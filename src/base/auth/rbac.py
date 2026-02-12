@@ -1,5 +1,11 @@
+# Token-level RBAC dependency: checks Entra ID roles and scopes that
+# are embedded in the JWT.  No database access — purely reads from the
+# token claims stored on request.state.user.
+#
+# For business-rule authorization (e.g. "is this user an admin of
+# group X?"), see src/domain/auth/authorization.py.
+
 import logging
-from typing import List
 
 from fastapi import HTTPException, Request, status
 
@@ -11,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 def require_roles_and_scopes(
-    required_roles: List[List[Role]] = None, required_scopes: List[List[str]] = None
+    required_roles: list[list[Role]] = None, required_scopes: list[list[str]] = None
 ):
     """
     Dependency for FastAPI endpoints that enforces RBAC.
