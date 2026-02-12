@@ -30,7 +30,6 @@ Multi-tenant authorization microservice for the Sidekick agent platform. Manages
    # Azure AD
    AZURE_TENANT_ID=your-tenant-id
    AZURE_CLIENT_ID=your-client-id
-   AZURE_AUDIENCE=your-audience
    AZURE_SCOPE=your-scope
 
    # Database (optional — defaults to local SQLite)

@@ -17,10 +17,10 @@ from src.base.models.role import Role
 # --- Env setup ---
 load_dotenv()
 TENANT_ID = os.getenv("AZURE_TENANT_ID")
-AUDIENCE = os.getenv("AZURE_AUDIENCE")
+CLIENT_ID = os.getenv("AZURE_CLIENT_ID")
 
-if not TENANT_ID or not AUDIENCE:
-    raise RuntimeError("AZURE_TENANT_ID and AZURE_AUDIENCE must be set")
+if not TENANT_ID or not CLIENT_ID:
+    raise RuntimeError("AZURE_TENANT_ID and AZURE_CLIENT_ID must be set")
 
 ISSUER = f"https://sts.windows.net/{TENANT_ID}/"
 JWKS_URL = f"https://login.microsoftonline.com/{TENANT_ID}/discovery/v2.0/keys"
@@ -52,7 +52,7 @@ def validate_jwt_token(token: str) -> dict[str, Any]:
             raise JWTError("Invalid signing key")
 
         payload = jwt.decode(
-            token, key, algorithms=["RS256"], audience=AUDIENCE, issuer=ISSUER
+            token, key, algorithms=["RS256"], audience=CLIENT_ID, issuer=ISSUER
         )
 
         logger.info("JWT validated successfully")
