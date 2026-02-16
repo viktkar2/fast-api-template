@@ -27,7 +27,6 @@ class AsyncSplunkHECHandler(logging.Handler):
         url: str,
         application_name: str,
         timeout=2,
-        max_queue_size=1000,
     ):
         super().__init__()
         self.host = host

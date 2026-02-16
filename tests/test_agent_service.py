@@ -69,13 +69,9 @@ class TestRegisterAgent:
 
     async def test_register_agent_duplicate_external_id(self, service):
         data = await _seed()
-        await service.register_agent(
-            "ext-100", "First", data["ga"].id, "user-001"
-        )
+        await service.register_agent("ext-100", "First", data["ga"].id, "user-001")
         with pytest.raises(ValueError, match="duplicate_agent"):
-            await service.register_agent(
-                "ext-100", "Second", data["ga"].id, "user-001"
-            )
+            await service.register_agent("ext-100", "Second", data["ga"].id, "user-001")
 
 
 class TestAssignAgentToGroup:
@@ -113,9 +109,7 @@ class TestAssignAgentToGroup:
             "ext-100", "Agent", data["ga"].id, "user-001"
         )
         with pytest.raises(ValueError, match="duplicate_assignment"):
-            await service.assign_agent_to_group(
-                data["ga"].id, agent.id, "user-001"
-            )
+            await service.assign_agent_to_group(data["ga"].id, agent.id, "user-001")
 
 
 class TestRemoveAgentFromGroup:
@@ -124,9 +118,7 @@ class TestRemoveAgentFromGroup:
         agent = await service.register_agent(
             "ext-100", "Agent", data["ga"].id, "user-001"
         )
-        result = await service.remove_agent_from_group(
-            data["ga"].id, agent.id
-        )
+        result = await service.remove_agent_from_group(data["ga"].id, agent.id)
         assert result is True
         agents = await service.list_agents_in_group(data["ga"].id)
         assert len(agents) == 0
@@ -134,20 +126,14 @@ class TestRemoveAgentFromGroup:
     async def test_remove_not_found(self, service):
         data = await _seed()
         with pytest.raises(ValueError, match="assignment_not_found"):
-            await service.remove_agent_from_group(
-                data["ga"].id, PydanticObjectId()
-            )
+            await service.remove_agent_from_group(data["ga"].id, PydanticObjectId())
 
 
 class TestListAgentsInGroup:
     async def test_list_agents(self, service):
         data = await _seed()
-        await service.register_agent(
-            "ext-1", "Agent 1", data["ga"].id, "user-001"
-        )
-        await service.register_agent(
-            "ext-2", "Agent 2", data["ga"].id, "user-001"
-        )
+        await service.register_agent("ext-1", "Agent 1", data["ga"].id, "user-001")
+        await service.register_agent("ext-2", "Agent 2", data["ga"].id, "user-001")
         agents = await service.list_agents_in_group(data["ga"].id)
         assert len(agents) == 2
 

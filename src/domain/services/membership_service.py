@@ -135,13 +135,15 @@ class MembershipService:
         result = []
         for m in memberships:
             u = user_map.get(m.entra_object_id)
-            result.append({
-                "entra_object_id": m.entra_object_id,
-                "display_name": u.display_name if u else "",
-                "email": u.email if u else "",
-                "role": m.role,
-                "created_at": m.created_at,
-            })
+            result.append(
+                {
+                    "entra_object_id": m.entra_object_id,
+                    "display_name": u.display_name if u else "",
+                    "email": u.email if u else "",
+                    "role": m.role,
+                    "created_at": m.created_at,
+                }
+            )
         return result
 
     async def _count_admins(self, group_id: PydanticObjectId) -> int:

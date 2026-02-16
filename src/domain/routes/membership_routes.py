@@ -140,9 +140,7 @@ async def remove_member(
     """Remove a member from a group (group admin or superadmin)."""
     group_oid = PydanticObjectId(group_id)
     try:
-        await service.remove_member(
-            group_id=group_oid, entra_object_id=entra_object_id
-        )
+        await service.remove_member(group_id=group_oid, entra_object_id=entra_object_id)
     except ValueError as e:
         _handle_service_error(e)
 

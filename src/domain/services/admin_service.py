@@ -89,15 +89,11 @@ class AdminService:
             raise ValueError("group_not_found")
 
         # Delete old assignments
-        await GroupAgentDocument.find(
-            GroupAgentDocument.agent_id == agent_id
-        ).delete()
+        await GroupAgentDocument.find(GroupAgentDocument.agent_id == agent_id).delete()
 
         # Insert new assignments
         new_gas = [
-            GroupAgentDocument(
-                group_id=gid, agent_id=agent_id, added_by=updated_by
-            )
+            GroupAgentDocument(group_id=gid, agent_id=agent_id, added_by=updated_by)
             for gid in group_ids
         ]
         if new_gas:

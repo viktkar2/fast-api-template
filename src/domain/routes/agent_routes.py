@@ -143,9 +143,7 @@ async def remove_agent_from_group(
     group_oid = PydanticObjectId(group_id)
     agent_oid = PydanticObjectId(agent_id)
     try:
-        await service.remove_agent_from_group(
-            group_id=group_oid, agent_id=agent_oid
-        )
+        await service.remove_agent_from_group(group_id=group_oid, agent_id=agent_oid)
     except ValueError as e:
         _handle_service_error(e)
 

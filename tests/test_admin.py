@@ -4,7 +4,7 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-from src.base.config.redis_cache import RedisCache
+from src.base.infra.redis_cache import RedisCache
 from src.base.models.user import User
 from src.domain.models.entities.agent import AgentDocument
 from src.domain.models.entities.enums import GroupRole
@@ -79,20 +79,38 @@ async def _seed_data():
         entra_object_id="user-001", group_id=group_b.id, role=GroupRole.USER
     ).insert()
 
-    agent1 = AgentDocument(agent_external_id="ext-1", name="Agent 1", created_by="user-001")
-    agent2 = AgentDocument(agent_external_id="ext-2", name="Agent 2", created_by="user-001")
-    agent3 = AgentDocument(agent_external_id="ext-3", name="Agent 3", created_by="user-001")
-    agent4 = AgentDocument(agent_external_id="ext-4", name="Agent 4", created_by="sa-001")
+    agent1 = AgentDocument(
+        agent_external_id="ext-1", name="Agent 1", created_by="user-001"
+    )
+    agent2 = AgentDocument(
+        agent_external_id="ext-2", name="Agent 2", created_by="user-001"
+    )
+    agent3 = AgentDocument(
+        agent_external_id="ext-3", name="Agent 3", created_by="user-001"
+    )
+    agent4 = AgentDocument(
+        agent_external_id="ext-4", name="Agent 4", created_by="sa-001"
+    )
     await agent1.insert()
     await agent2.insert()
     await agent3.insert()
     await agent4.insert()
 
-    await GroupAgentDocument(group_id=group_a.id, agent_id=agent1.id, added_by="user-001").insert()
-    await GroupAgentDocument(group_id=group_a.id, agent_id=agent2.id, added_by="user-001").insert()
-    await GroupAgentDocument(group_id=group_b.id, agent_id=agent2.id, added_by="user-001").insert()
-    await GroupAgentDocument(group_id=group_b.id, agent_id=agent3.id, added_by="user-001").insert()
-    await GroupAgentDocument(group_id=group_c.id, agent_id=agent4.id, added_by="sa-001").insert()
+    await GroupAgentDocument(
+        group_id=group_a.id, agent_id=agent1.id, added_by="user-001"
+    ).insert()
+    await GroupAgentDocument(
+        group_id=group_a.id, agent_id=agent2.id, added_by="user-001"
+    ).insert()
+    await GroupAgentDocument(
+        group_id=group_b.id, agent_id=agent2.id, added_by="user-001"
+    ).insert()
+    await GroupAgentDocument(
+        group_id=group_b.id, agent_id=agent3.id, added_by="user-001"
+    ).insert()
+    await GroupAgentDocument(
+        group_id=group_c.id, agent_id=agent4.id, added_by="sa-001"
+    ).insert()
 
     return {
         "group_a": group_a,

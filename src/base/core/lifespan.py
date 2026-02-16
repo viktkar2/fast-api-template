@@ -4,10 +4,10 @@ from contextlib import asynccontextmanager
 from beanie import init_beanie
 from fastapi import FastAPI
 
-from src.base.config.database import _get_database_name, close_db, init_db
 from src.base.config.logging_config import LoggingConfig
-from src.base.config.redis import close_redis, init_redis
-from src.base.config.redis_cache import RedisCache
+from src.base.infra.database import _get_database_name, close_db, init_db
+from src.base.infra.redis_cache import RedisCache
+from src.base.infra.redis_client import close_redis, init_redis
 from src.domain.models.entities import (
     AgentDocument,
     GroupAgentDocument,

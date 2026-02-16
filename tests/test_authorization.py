@@ -72,9 +72,7 @@ class TestRequireGroupAdmin:
         assert resp.json()["user_id"] == SUPERADMIN.id
 
     async def test_group_admin_allowed(self, client):
-        group_id = await _seed_group_and_membership(
-            REGULAR_USER.id, GroupRole.ADMIN
-        )
+        group_id = await _seed_group_and_membership(REGULAR_USER.id, GroupRole.ADMIN)
         resp = await client.get(
             f"/groups/{group_id}/admin-only", headers=_user_header(REGULAR_USER)
         )
@@ -82,25 +80,19 @@ class TestRequireGroupAdmin:
         assert resp.json()["user_id"] == REGULAR_USER.id
 
     async def test_group_user_forbidden(self, client):
-        group_id = await _seed_group_and_membership(
-            REGULAR_USER.id, GroupRole.USER
-        )
+        group_id = await _seed_group_and_membership(REGULAR_USER.id, GroupRole.USER)
         resp = await client.get(
             f"/groups/{group_id}/admin-only", headers=_user_header(REGULAR_USER)
         )
         assert resp.status_code == 403
 
     async def test_no_membership_forbidden(self, client):
-        group_id = await _seed_group_and_membership(
-            OTHER_USER.id, GroupRole.ADMIN
-        )
+        group_id = await _seed_group_and_membership(OTHER_USER.id, GroupRole.ADMIN)
         resp = await client.get(
             f"/groups/{group_id}/admin-only", headers=_user_header(REGULAR_USER)
         )
         assert resp.status_code == 403
 
     async def test_unauthenticated_unauthorized(self, client):
-        resp = await client.get(
-            "/groups/000000000000000000000001/admin-only"
-        )
+        resp = await client.get("/groups/000000000000000000000001/admin-only")
         assert resp.status_code == 401

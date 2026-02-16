@@ -3,7 +3,7 @@ import logging
 
 from beanie import PydanticObjectId
 
-from src.base.config.redis_cache import RedisCache
+from src.base.infra.redis_cache import RedisCache
 from src.domain.models.entities.enums import GroupRole
 from src.domain.models.entities.group_agent import GroupAgentDocument
 from src.domain.models.entities.group_membership import GroupMembershipDocument

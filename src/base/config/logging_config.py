@@ -1,7 +1,7 @@
 import logging
 import os
 
-from src.base.config.splunk_handler import AsyncSplunkHECHandler
+from src.base.infra.splunk_handler import AsyncSplunkHECHandler
 from src.base.middleware.request_context import RequestContextFilter
 from src.base.utils.env_utils import is_local_development
 

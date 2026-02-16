@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from src.base.config.redis_cache import RedisCache
+from src.base.infra.redis_cache import RedisCache
 from src.domain.models.entities.agent import AgentDocument
 from src.domain.models.entities.enums import GroupRole
 from src.domain.models.entities.group import GroupDocument
@@ -53,9 +53,15 @@ async def _seed():
     await a2.insert()
     await a3.insert()
 
-    await GroupAgentDocument(group_id=ga.id, agent_id=a1.id, added_by="user-001").insert()
-    await GroupAgentDocument(group_id=gb.id, agent_id=a2.id, added_by="user-001").insert()
-    await GroupAgentDocument(group_id=gc.id, agent_id=a3.id, added_by="user-002").insert()
+    await GroupAgentDocument(
+        group_id=ga.id, agent_id=a1.id, added_by="user-001"
+    ).insert()
+    await GroupAgentDocument(
+        group_id=gb.id, agent_id=a2.id, added_by="user-001"
+    ).insert()
+    await GroupAgentDocument(
+        group_id=gc.id, agent_id=a3.id, added_by="user-002"
+    ).insert()
 
     return {"ga": ga, "gb": gb, "gc": gc, "a1": a1, "a2": a2, "a3": a3}
 
