@@ -3,6 +3,8 @@ import os
 
 from motor.motor_asyncio import AsyncIOMotorClient
 
+from src.base.utils.env_utils import is_local_development
+
 logger = logging.getLogger(__name__)
 
 
@@ -20,11 +22,35 @@ def _get_database_name() -> str:
 
 
 async def init_db() -> AsyncIOMotorClient:
-    """Create and return a Motor client."""
+    """Create and return a Motor client.
+
+    In local development, falls back to an in-memory mock database
+    when no real MongoDB instance is reachable.
+    """
     uri = _get_mongo_uri()
     safe_uri = uri.split("@")[-1] if "@" in uri else uri
     logger.info("Connecting to MongoDB: %s", safe_uri)
-    client = AsyncIOMotorClient(uri)
+    client = AsyncIOMotorClient(uri, serverSelectionTimeoutMS=5000)
+
+    # Motor is lazy — force a connection check so we fail fast
+    try:
+        await client.admin.command("ping")
+        logger.info("MongoDB connection established.")
+    except Exception:
+        client.close()
+
+        if not is_local_development():
+            raise
+
+        logger.warning(
+            "MongoDB not reachable at %s — falling back to in-memory mock database. "
+            "Data will not persist across restarts.",
+            safe_uri,
+        )
+        from mongomock_motor import AsyncMongoMockClient
+
+        client = AsyncMongoMockClient()
+
     return client
 
 

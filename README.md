@@ -46,6 +46,15 @@ Multi-tenant authorization microservice for the Sidekick agent platform. Manages
 uv run uvicorn src.app:app --host 0.0.0.0 --port 8000
 ```
 
+When `ENVIRONMENT=development`, the app automatically falls back to an in-memory MongoDB mock if no real MongoDB instance is reachable. Data will not persist across restarts in this mode.
+
+To run with a real MongoDB (persistent data), start the infrastructure containers first:
+
+```bash
+docker compose up mongo redis
+uv run uvicorn src.app:app --host 0.0.0.0 --port 8000
+```
+
 ### Docker
 
 ```bash
