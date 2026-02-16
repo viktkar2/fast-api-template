@@ -1,20 +1,20 @@
 import datetime
+from typing import Annotated
 
-from sqlalchemy import String, func
-from sqlalchemy.orm import Mapped, mapped_column
-
-from src.base.config.database import Base
+from beanie import Document, Indexed
+from pydantic import Field
 
 
-class User(Base):
-    __tablename__ = "users"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    entra_object_id: Mapped[str] = mapped_column(String(36), unique=True, index=True)
-    display_name: Mapped[str] = mapped_column(String(255))
-    email: Mapped[str] = mapped_column(String(255))
-    created_at: Mapped[datetime.datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime.datetime] = mapped_column(
-        server_default=func.now(),
-        onupdate=lambda: datetime.datetime.now(datetime.UTC),
+class UserDocument(Document):
+    entra_object_id: Annotated[str, Indexed(unique=True)]
+    display_name: str
+    email: str
+    created_at: datetime.datetime = Field(
+        default_factory=lambda: datetime.datetime.now(datetime.UTC)
     )
+    updated_at: datetime.datetime = Field(
+        default_factory=lambda: datetime.datetime.now(datetime.UTC)
+    )
+
+    class Settings:
+        name = "users"

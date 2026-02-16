@@ -1,13 +1,11 @@
 import logging
 
-from sqlalchemy import func, select
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
+from beanie import PydanticObjectId
 
 from src.domain.models.entities.enums import GroupRole
-from src.domain.models.entities.group import Group
-from src.domain.models.entities.group_membership import GroupMembership
-from src.domain.models.entities.user import User
+from src.domain.models.entities.group import GroupDocument
+from src.domain.models.entities.group_membership import GroupMembershipDocument
+from src.domain.models.entities.user import UserDocument
 
 logger = logging.getLogger(__name__)
 
@@ -15,37 +13,32 @@ logger = logging.getLogger(__name__)
 class MembershipService:
     async def add_member(
         self,
-        session: AsyncSession,
-        group_id: int,
+        group_id: PydanticObjectId,
         entra_object_id: str,
         role: GroupRole,
-    ) -> GroupMembership:
+    ) -> GroupMembershipDocument:
         """Add a user to a group with the given role."""
-        # Verify group exists
-        result = await session.execute(select(Group).where(Group.id == group_id))
-        if result.scalar_one_or_none() is None:
+        if not await GroupDocument.get(group_id):
             raise ValueError("group_not_found")
 
-        # Verify user exists in local users table
-        result = await session.execute(
-            select(User).where(User.entra_object_id == entra_object_id)
-        )
-        if result.scalar_one_or_none() is None:
+        if not await UserDocument.find_one(
+            UserDocument.entra_object_id == entra_object_id
+        ):
             raise ValueError("user_not_found")
 
-        membership = GroupMembership(
+        existing = await GroupMembershipDocument.find_one(
+            GroupMembershipDocument.entra_object_id == entra_object_id,
+            GroupMembershipDocument.group_id == group_id,
+        )
+        if existing:
+            raise ValueError("duplicate_membership")
+
+        membership = GroupMembershipDocument(
             entra_object_id=entra_object_id,
             group_id=group_id,
             role=role,
         )
-        session.add(membership)
-        try:
-            await session.commit()
-        except IntegrityError:
-            await session.rollback()
-            raise ValueError("duplicate_membership") from None
-
-        await session.refresh(membership)
+        await membership.insert()
         logger.info(
             "Added member entra_object_id=%s to group_id=%s role=%s",
             entra_object_id,
@@ -56,24 +49,20 @@ class MembershipService:
 
     async def remove_member(
         self,
-        session: AsyncSession,
-        group_id: int,
+        group_id: PydanticObjectId,
         entra_object_id: str,
     ) -> bool:
         """Remove a user from a group. Returns True on success."""
-        result = await session.execute(
-            select(GroupMembership).where(
-                GroupMembership.group_id == group_id,
-                GroupMembership.entra_object_id == entra_object_id,
-            )
+        membership = await GroupMembershipDocument.find_one(
+            GroupMembershipDocument.group_id == group_id,
+            GroupMembershipDocument.entra_object_id == entra_object_id,
         )
-        membership = result.scalar_one_or_none()
         if membership is None:
             raise ValueError("membership_not_found")
 
         # Last-admin protection
         if membership.role == GroupRole.ADMIN:
-            admin_count = await self._count_admins(session, group_id)
+            admin_count = await self._count_admins(group_id)
             if admin_count <= 1:
                 logger.warning(
                     "Blocked removal of last admin entra_object_id=%s from group_id=%s",
@@ -82,8 +71,7 @@ class MembershipService:
                 )
                 raise ValueError("last_admin")
 
-        await session.delete(membership)
-        await session.commit()
+        await membership.delete()
         logger.info(
             "Removed member entra_object_id=%s from group_id=%s",
             entra_object_id,
@@ -93,25 +81,21 @@ class MembershipService:
 
     async def update_member_role(
         self,
-        session: AsyncSession,
-        group_id: int,
+        group_id: PydanticObjectId,
         entra_object_id: str,
         new_role: GroupRole,
-    ) -> GroupMembership:
+    ) -> GroupMembershipDocument:
         """Update a member's role within a group."""
-        result = await session.execute(
-            select(GroupMembership).where(
-                GroupMembership.group_id == group_id,
-                GroupMembership.entra_object_id == entra_object_id,
-            )
+        membership = await GroupMembershipDocument.find_one(
+            GroupMembershipDocument.group_id == group_id,
+            GroupMembershipDocument.entra_object_id == entra_object_id,
         )
-        membership = result.scalar_one_or_none()
         if membership is None:
             raise ValueError("membership_not_found")
 
         # Last-admin protection when demoting admin -> user
         if membership.role == GroupRole.ADMIN and new_role == GroupRole.USER:
-            admin_count = await self._count_admins(session, group_id)
+            admin_count = await self._count_admins(group_id)
             if admin_count <= 1:
                 logger.warning(
                     "Blocked demotion of last admin entra_object_id=%s in group_id=%s",
@@ -121,8 +105,7 @@ class MembershipService:
                 raise ValueError("last_admin")
 
         membership.role = new_role
-        await session.commit()
-        await session.refresh(membership)
+        await membership.save()
         logger.info(
             "Updated member entra_object_id=%s in group_id=%s to role=%s",
             entra_object_id,
@@ -133,34 +116,37 @@ class MembershipService:
 
     async def list_members(
         self,
-        session: AsyncSession,
-        group_id: int,
-    ) -> list:
+        group_id: PydanticObjectId,
+    ) -> list[dict]:
         """List members of a group with user details."""
-        # Verify group exists
-        result = await session.execute(select(Group).where(Group.id == group_id))
-        if result.scalar_one_or_none() is None:
+        if not await GroupDocument.get(group_id):
             raise ValueError("group_not_found")
 
-        result = await session.execute(
-            select(
-                GroupMembership.entra_object_id,
-                User.display_name,
-                User.email,
-                GroupMembership.role,
-                GroupMembership.created_at,
-            )
-            .join(User, User.entra_object_id == GroupMembership.entra_object_id)
-            .where(GroupMembership.group_id == group_id)
-        )
-        return list(result.all())
+        memberships = await GroupMembershipDocument.find(
+            GroupMembershipDocument.group_id == group_id
+        ).to_list()
 
-    async def _count_admins(self, session: AsyncSession, group_id: int) -> int:
+        entra_ids = [m.entra_object_id for m in memberships]
+        users = await UserDocument.find(
+            {"entra_object_id": {"$in": entra_ids}}
+        ).to_list()
+        user_map = {u.entra_object_id: u for u in users}
+
+        result = []
+        for m in memberships:
+            u = user_map.get(m.entra_object_id)
+            result.append({
+                "entra_object_id": m.entra_object_id,
+                "display_name": u.display_name if u else "",
+                "email": u.email if u else "",
+                "role": m.role,
+                "created_at": m.created_at,
+            })
+        return result
+
+    async def _count_admins(self, group_id: PydanticObjectId) -> int:
         """Count the number of admins in a group."""
-        result = await session.execute(
-            select(func.count()).where(
-                GroupMembership.group_id == group_id,
-                GroupMembership.role == GroupRole.ADMIN,
-            )
-        )
-        return result.scalar_one()
+        return await GroupMembershipDocument.find(
+            GroupMembershipDocument.group_id == group_id,
+            GroupMembershipDocument.role == GroupRole.ADMIN,
+        ).count()

@@ -14,7 +14,7 @@ class GroupUpdate(BaseModel):
 
 
 class GroupResponse(BaseModel):
-    id: int
+    id: str
     name: str
     description: str | None
     created_at: datetime.datetime

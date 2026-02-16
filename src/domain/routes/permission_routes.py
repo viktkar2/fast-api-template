@@ -1,11 +1,9 @@
 import logging
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.base.core.dependencies import (
     get_current_user,
-    get_db_session,
     get_permission_service,
 )
 from src.base.models.user import User
@@ -22,10 +20,9 @@ logger = logging.getLogger(__name__)
 @router.get("/check", response_model=PermissionCheckResponse)
 async def check_permission(
     user_id: str = Query(..., description="Entra object ID of the user"),
-    agent_id: int = Query(..., description="Internal agent ID"),
+    agent_id: str = Query(..., description="Agent ID"),
     action: PermissionAction = Query(..., description="Action to check"),
     user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db_session),
     service: PermissionService = Depends(get_permission_service),
 ):
     """Check whether a user can perform an action on an agent.
@@ -33,7 +30,6 @@ async def check_permission(
     Used by the core platform before every agent interaction.
     """
     allowed, role = await service.check_permission(
-        session,
         user_id=user_id,
         agent_id=agent_id,
         action=action,

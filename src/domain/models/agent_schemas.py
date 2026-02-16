@@ -6,15 +6,15 @@ from pydantic import BaseModel, Field
 class RegisterAgentRequest(BaseModel):
     agent_external_id: str = Field(..., min_length=1, max_length=255)
     name: str = Field(..., min_length=1, max_length=255)
-    group_id: int
+    group_id: str
 
 
 class AssignAgentToGroupRequest(BaseModel):
-    agent_id: int
+    agent_id: str
 
 
 class AgentResponse(BaseModel):
-    id: int
+    id: str
     agent_external_id: str
     name: str
     created_by: str
@@ -28,14 +28,14 @@ class AgentListResponse(BaseModel):
 
 
 class AgentGroupInfo(BaseModel):
-    group_id: int
+    group_id: str
     group_name: str
 
     model_config = {"from_attributes": True}
 
 
 class UserAgentResponse(BaseModel):
-    id: int
+    id: str
     agent_external_id: str
     name: str
     created_by: str

@@ -1,11 +1,10 @@
 import logging
 
+from beanie import PydanticObjectId
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.base.core.dependencies import (
     get_admin_service,
-    get_db_session,
     get_permission_service,
 )
 from src.base.models.user import User
@@ -28,22 +27,20 @@ logger = logging.getLogger(__name__)
 @router.get("/agents", response_model=AdminAgentListResponse)
 async def list_all_agents(
     user: User = Depends(require_superadmin),
-    session: AsyncSession = Depends(get_db_session),
     service: AdminService = Depends(get_admin_service),
 ):
     """List all agents with their group assignments (superadmin only)."""
-    agents = await service.list_all_agents(session)
+    agents = await service.list_all_agents()
     return AdminAgentListResponse(agents=[AdminAgentResponse(**a) for a in agents])
 
 
 @router.get("/groups", response_model=AdminGroupListResponse)
 async def list_all_groups(
     user: User = Depends(require_superadmin),
-    session: AsyncSession = Depends(get_db_session),
     service: AdminService = Depends(get_admin_service),
 ):
     """List all groups with member counts (superadmin only)."""
-    groups = await service.list_all_groups_with_counts(session)
+    groups = await service.list_all_groups_with_counts()
     return AdminGroupListResponse(groups=[AdminGroupResponse(**g) for g in groups])
 
 
@@ -52,19 +49,19 @@ async def list_all_groups(
     response_model=BulkUpdateAgentGroupsResponse,
 )
 async def bulk_update_agent_groups(
-    agent_id: int,
+    agent_id: str,
     body: BulkUpdateAgentGroupsRequest,
     user: User = Depends(require_superadmin),
-    session: AsyncSession = Depends(get_db_session),
     service: AdminService = Depends(get_admin_service),
     permission_service: PermissionService = Depends(get_permission_service),
 ):
     """Bulk update group assignments for an agent (superadmin only)."""
+    agent_oid = PydanticObjectId(agent_id)
+    group_oids = [PydanticObjectId(gid) for gid in body.group_ids]
     try:
         result = await service.bulk_update_agent_groups(
-            session,
-            agent_id=agent_id,
-            group_ids=body.group_ids,
+            agent_id=agent_oid,
+            group_ids=group_oids,
             updated_by=user.id,
         )
     except ValueError as e:

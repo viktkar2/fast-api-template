@@ -1,13 +1,12 @@
 import json
 import logging
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from beanie import PydanticObjectId
 
 from src.base.config.redis_cache import RedisCache
 from src.domain.models.entities.enums import GroupRole
-from src.domain.models.entities.group_agent import GroupAgent
-from src.domain.models.entities.group_membership import GroupMembership
+from src.domain.models.entities.group_agent import GroupAgentDocument
+from src.domain.models.entities.group_membership import GroupMembershipDocument
 from src.domain.models.permission_schemas import PermissionAction
 
 logger = logging.getLogger(__name__)
@@ -19,7 +18,7 @@ class PermissionService:
     def __init__(self, cache: RedisCache):
         self._cache = cache
 
-    def _cache_key(self, user_id: str, agent_id: int, action: str) -> str:
+    def _cache_key(self, user_id: str, agent_id: str, action: str) -> str:
         return f"perm:{user_id}:{agent_id}:{action}"
 
     def _user_agents_key(self, user_id: str) -> str:
@@ -27,9 +26,8 @@ class PermissionService:
 
     async def check_permission(
         self,
-        session: AsyncSession,
         user_id: str,
-        agent_id: int,
+        agent_id: str,
         action: PermissionAction,
         *,
         is_superadmin: bool = False,
@@ -47,21 +45,28 @@ class PermissionService:
             data = json.loads(cached)
             return data["allowed"], data.get("role")
 
-        # Query DB: join group_memberships with group_agents on group_id
-        stmt = (
-            select(GroupMembership.role)
-            .join(GroupAgent, GroupMembership.group_id == GroupAgent.group_id)
-            .where(
-                GroupMembership.entra_object_id == user_id,
-                GroupAgent.agent_id == agent_id,
-            )
-        )
+        # Find groups this agent belongs to
+        agent_oid = PydanticObjectId(agent_id)
+        gas = await GroupAgentDocument.find(
+            GroupAgentDocument.agent_id == agent_oid
+        ).to_list()
+        group_ids = [ga.group_id for ga in gas]
 
+        if not group_ids:
+            value = json.dumps({"allowed": False, "role": None})
+            await self._cache.set(key, value, CACHE_TTL_SECONDS)
+            return False, None
+
+        # Find user's memberships in those groups
+        query_filter = {
+            "group_id": {"$in": group_ids},
+            "entra_object_id": user_id,
+        }
         if action == PermissionAction.CREATE:
-            stmt = stmt.where(GroupMembership.role == GroupRole.ADMIN)
+            query_filter["role"] = GroupRole.ADMIN.value
 
-        result = await session.execute(stmt)
-        roles = [row[0] for row in result.all()]
+        memberships = await GroupMembershipDocument.find(query_filter).to_list()
+        roles = [m.role for m in memberships]
 
         if not roles:
             value = json.dumps({"allowed": False, "role": None})
@@ -93,7 +98,7 @@ class PermissionService:
         await self._cache.delete(self._user_agents_key(user_id))
         logger.info("Invalidated permission cache for user_id=%s", user_id)
 
-    async def invalidate_agent_permissions(self, agent_id: int) -> None:
+    async def invalidate_agent_permissions(self, agent_id: str) -> None:
         """Delete all cached permissions for an agent and affected user agent lists."""
         await self._cache.delete_pattern(f"perm:*:{agent_id}:*")
         await self._cache.delete_pattern("user_agents:*")

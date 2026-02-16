@@ -1,16 +1,17 @@
 import datetime
+from typing import Annotated
 
-from sqlalchemy import String, func
-from sqlalchemy.orm import Mapped, mapped_column
-
-from src.base.config.database import Base
+from beanie import Document, Indexed
+from pydantic import Field
 
 
-class Agent(Base):
-    __tablename__ = "agents"
+class AgentDocument(Document):
+    agent_external_id: Annotated[str, Indexed(unique=True)]
+    name: str
+    created_by: str
+    created_at: datetime.datetime = Field(
+        default_factory=lambda: datetime.datetime.now(datetime.UTC)
+    )
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    agent_external_id: Mapped[str] = mapped_column(String(255), unique=True, index=True)
-    name: Mapped[str] = mapped_column(String(255))
-    created_by: Mapped[str] = mapped_column(String(36))
-    created_at: Mapped[datetime.datetime] = mapped_column(server_default=func.now())
+    class Settings:
+        name = "agents"

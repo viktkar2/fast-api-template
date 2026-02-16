@@ -7,6 +7,7 @@ Multi-tenant authorization microservice for the Sidekick agent platform. Manages
 - Python 3.12+
 - [uv](https://docs.astral.sh/uv/) package manager
 - Azure AD tenant with configured application
+- MongoDB (or Azure Cosmos DB for MongoDB in production)
 
 ## Setup
 
@@ -32,14 +33,9 @@ Multi-tenant authorization microservice for the Sidekick agent platform. Manages
    AZURE_CLIENT_ID=your-client-id
    AZURE_SCOPE=your-scope
 
-   # Database (optional — defaults to local SQLite)
-   # DATABASE_URL=postgresql+asyncpg://user:password@host:5432/dbname
-   ```
-
-3. **Apply database migrations**:
-
-   ```bash
-   uv run alembic upgrade head
+   # MongoDB
+   MONGODB_URI=mongodb://localhost:27017
+   MONGODB_DATABASE=sidekick
    ```
 
 ## Running
@@ -61,20 +57,9 @@ The application will be available at:
 - **API**: http://localhost:8000
 - **Docs**: http://localhost:8000/docs
 
-## Database Migrations
+## Database
 
-Schema changes are managed with [Alembic](https://alembic.sqlalchemy.org/). See [docs/database-migrations.md](docs/database-migrations.md) for full details.
-
-```bash
-# Apply pending migrations
-uv run alembic upgrade head
-
-# Generate a migration after changing a model
-uv run alembic revision --autogenerate -m "describe the change"
-
-# Show current revision
-uv run alembic current
-```
+The application uses [Beanie ODM](https://beanie-odm.dev/) with MongoDB (Azure Cosmos DB for MongoDB in production). Indexes are created automatically on application startup via `init_beanie()` — no migration tool is needed.
 
 ## Testing
 
@@ -92,6 +77,8 @@ uv run ruff check src/
 uv run ruff format src/
 ```
 
+Tests use `mongomock-motor` for an in-memory MongoDB mock — no running MongoDB instance is required.
+
 ## Project Structure
 
 ```
@@ -105,13 +92,9 @@ src/
 │   └── utils/                          # Environment helpers
 └── domain/                             # Business logic
     ├── auth/                           # Domain authorization (group admin checks)
-    ├── models/                         # Pydantic schemas, SQLAlchemy entities
+    ├── models/                         # Pydantic schemas, Beanie Document models
     ├── routes/                         # API route handlers
     └── services/                       # Business logic services
-
-alembic/                                # Database migration scripts
-├── env.py                              # Migration environment config
-└── versions/                           # Versioned migration files
 
 tests/                                  # Test suite
 docs/                                   # Documentation

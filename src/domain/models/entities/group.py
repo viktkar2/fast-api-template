@@ -1,19 +1,18 @@
 import datetime
 
-from sqlalchemy import String, func
-from sqlalchemy.orm import Mapped, mapped_column
-
-from src.base.config.database import Base
+from beanie import Document
+from pydantic import Field
 
 
-class Group(Base):
-    __tablename__ = "groups"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(255))
-    description: Mapped[str | None] = mapped_column(String(1000), nullable=True)
-    created_at: Mapped[datetime.datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime.datetime] = mapped_column(
-        server_default=func.now(),
-        onupdate=lambda: datetime.datetime.now(datetime.UTC),
+class GroupDocument(Document):
+    name: str
+    description: str | None = None
+    created_at: datetime.datetime = Field(
+        default_factory=lambda: datetime.datetime.now(datetime.UTC)
     )
+    updated_at: datetime.datetime = Field(
+        default_factory=lambda: datetime.datetime.now(datetime.UTC)
+    )
+
+    class Settings:
+        name = "groups"

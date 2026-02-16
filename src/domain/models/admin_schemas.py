@@ -6,7 +6,7 @@ from src.domain.models.agent_schemas import AgentGroupInfo
 
 
 class AdminAgentResponse(BaseModel):
-    id: int
+    id: str
     agent_external_id: str
     name: str
     created_by: str
@@ -21,7 +21,7 @@ class AdminAgentListResponse(BaseModel):
 
 
 class AdminGroupResponse(BaseModel):
-    id: int
+    id: str
     name: str
     description: str | None
     created_at: datetime.datetime
@@ -36,7 +36,7 @@ class AdminGroupListResponse(BaseModel):
 
 
 class BulkUpdateAgentGroupsRequest(BaseModel):
-    group_ids: list[int] = Field(..., min_length=1)
+    group_ids: list[str] = Field(..., min_length=1)
 
 
 class BulkUpdateAgentGroupsResponse(BaseModel):

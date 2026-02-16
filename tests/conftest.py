@@ -1,15 +1,27 @@
 import json
 
 import pytest
+from beanie import init_beanie
 from fastapi import Depends, FastAPI, Request
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from mongomock_motor import AsyncMongoMockClient
 from starlette.middleware.base import BaseHTTPMiddleware
 
-import src.domain.models.entities  # noqa: F401
-from src.base.config.database import Base
 from src.base.models.user import User
 from src.domain.auth.authorization import require_group_admin, require_superadmin
+from src.domain.models.entities.agent import AgentDocument
+from src.domain.models.entities.group import GroupDocument
+from src.domain.models.entities.group_agent import GroupAgentDocument
+from src.domain.models.entities.group_membership import GroupMembershipDocument
+from src.domain.models.entities.user import UserDocument
+
+ALL_DOCUMENTS = [
+    AgentDocument,
+    GroupDocument,
+    GroupAgentDocument,
+    GroupMembershipDocument,
+    UserDocument,
+]
 
 
 class FakeAuthMiddleware(BaseHTTPMiddleware):
@@ -24,32 +36,22 @@ class FakeAuthMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-@pytest.fixture
-async def db_engine():
-    engine = create_async_engine(
-        "sqlite+aiosqlite://", connect_args={"check_same_thread": False}
-    )
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield engine
-    await engine.dispose()
+@pytest.fixture(autouse=True)
+async def init_db():
+    """Initialize Beanie with mongomock for each test and clean up after."""
+    client = AsyncMongoMockClient()
+    db = client["test_db"]
+    await init_beanie(database=db, document_models=ALL_DOCUMENTS)
+    yield
+    # Clean all collections after each test
+    for doc_cls in ALL_DOCUMENTS:
+        await doc_cls.find_all().delete()
+    client.close()
 
 
 @pytest.fixture
-async def db_session_factory(db_engine):
-    return async_sessionmaker(db_engine, expire_on_commit=False)
-
-
-@pytest.fixture
-async def db_session(db_session_factory):
-    async with db_session_factory() as session:
-        yield session
-
-
-@pytest.fixture
-def app(db_session_factory):
+def app():
     test_app = FastAPI()
-    test_app.state.db_session_factory = db_session_factory
     test_app.add_middleware(FakeAuthMiddleware)
 
     @test_app.get("/superadmin-only")
@@ -58,7 +60,7 @@ def app(db_session_factory):
 
     @test_app.get("/groups/{group_id}/admin-only")
     async def group_admin_route(
-        group_id: int, user: User = Depends(require_group_admin())
+        group_id: str, user: User = Depends(require_group_admin())
     ):
         return {"user_id": user.id, "group_id": group_id}
 

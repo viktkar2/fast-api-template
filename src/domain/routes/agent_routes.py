@@ -1,13 +1,11 @@
 import logging
 
+from beanie import PydanticObjectId
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.base.core.dependencies import (
     get_agent_service,
     get_current_user,
-    get_db_session,
     get_permission_service,
 )
 from src.base.models.user import User
@@ -21,7 +19,7 @@ from src.domain.models.agent_schemas import (
     UserAgentResponse,
 )
 from src.domain.models.entities.enums import GroupRole
-from src.domain.models.entities.group_membership import GroupMembership
+from src.domain.models.entities.group_membership import GroupMembershipDocument
 from src.domain.models.group_schemas import GroupListResponse, GroupResponse
 from src.domain.services.agent_service import AgentService
 from src.domain.services.permission_service import PermissionService
@@ -63,23 +61,22 @@ def _handle_service_error(e: ValueError) -> None:
 async def register_agent(
     body: RegisterAgentRequest,
     user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db_session),
     service: AgentService = Depends(get_agent_service),
 ):
     """Register a new agent and assign it to a group.
 
     The caller must be an admin of the target group or a superadmin.
     """
+    group_oid = PydanticObjectId(body.group_id)
+
     # Authorize: user must be admin of the target group (or superadmin)
     if not user.is_superadmin:
-        result = await session.execute(
-            select(GroupMembership).where(
-                GroupMembership.entra_object_id == user.id,
-                GroupMembership.group_id == body.group_id,
-                GroupMembership.role == GroupRole.ADMIN,
-            )
+        membership = await GroupMembershipDocument.find_one(
+            GroupMembershipDocument.entra_object_id == user.id,
+            GroupMembershipDocument.group_id == group_oid,
+            GroupMembershipDocument.role == GroupRole.ADMIN,
         )
-        if result.scalar_one_or_none() is None:
+        if membership is None:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Group admin access required",
@@ -87,16 +84,15 @@ async def register_agent(
 
     try:
         agent = await service.register_agent(
-            session,
             agent_external_id=body.agent_external_id,
             name=body.name,
-            group_id=body.group_id,
+            group_id=group_oid,
             created_by=user.id,
         )
     except ValueError as e:
         _handle_service_error(e)
 
-    return AgentResponse.model_validate(agent)
+    return AgentResponse.model_validate(agent, from_attributes=True)
 
 
 @router.post(
@@ -105,19 +101,19 @@ async def register_agent(
     response_model=AgentResponse,
 )
 async def assign_agent_to_group(
-    group_id: int,
+    group_id: str,
     body: AssignAgentToGroupRequest,
     user: User = Depends(require_group_admin()),
-    session: AsyncSession = Depends(get_db_session),
     service: AgentService = Depends(get_agent_service),
     permission_service: PermissionService = Depends(get_permission_service),
 ):
     """Assign an existing agent to an additional group (group admin or superadmin)."""
+    group_oid = PydanticObjectId(group_id)
+    agent_oid = PydanticObjectId(body.agent_id)
     try:
         await service.assign_agent_to_group(
-            session,
-            group_id=group_id,
-            agent_id=body.agent_id,
+            group_id=group_oid,
+            agent_id=agent_oid,
             added_by=user.id,
         )
     except ValueError as e:
@@ -126,10 +122,10 @@ async def assign_agent_to_group(
     await permission_service.invalidate_agent_permissions(body.agent_id)
 
     # Return the agent details
-    agents = await service.list_agents_in_group(session, group_id)
+    agents = await service.list_agents_in_group(group_oid)
     for a in agents:
-        if a.id == body.agent_id:
-            return AgentResponse.model_validate(a)
+        if a.id == agent_oid:
+            return AgentResponse.model_validate(a, from_attributes=True)
 
 
 @router.delete(
@@ -137,17 +133,18 @@ async def assign_agent_to_group(
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def remove_agent_from_group(
-    group_id: int,
-    agent_id: int,
+    group_id: str,
+    agent_id: str,
     user: User = Depends(require_group_admin()),
-    session: AsyncSession = Depends(get_db_session),
     service: AgentService = Depends(get_agent_service),
     permission_service: PermissionService = Depends(get_permission_service),
 ):
     """Remove an agent from a group (group admin or superadmin)."""
+    group_oid = PydanticObjectId(group_id)
+    agent_oid = PydanticObjectId(agent_id)
     try:
         await service.remove_agent_from_group(
-            session, group_id=group_id, agent_id=agent_id
+            group_id=group_oid, agent_id=agent_oid
         )
     except ValueError as e:
         _handle_service_error(e)
@@ -157,25 +154,26 @@ async def remove_agent_from_group(
 
 @router.get("/groups/{group_id}/agents", response_model=AgentListResponse)
 async def list_agents_in_group(
-    group_id: int,
+    group_id: str,
     user: User = Depends(require_group_admin()),
-    session: AsyncSession = Depends(get_db_session),
     service: AgentService = Depends(get_agent_service),
 ):
     """List agents assigned to a group (group admin or superadmin)."""
+    group_oid = PydanticObjectId(group_id)
     try:
-        agents = await service.list_agents_in_group(session, group_id)
+        agents = await service.list_agents_in_group(group_oid)
     except ValueError as e:
         _handle_service_error(e)
 
-    return AgentListResponse(agents=[AgentResponse.model_validate(a) for a in agents])
+    return AgentListResponse(
+        agents=[AgentResponse.model_validate(a, from_attributes=True) for a in agents]
+    )
 
 
 @router.get("/users/{entra_object_id}/admin-groups", response_model=GroupListResponse)
 async def get_admin_groups(
     entra_object_id: str,
     user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db_session),
     service: AgentService = Depends(get_agent_service),
 ):
     """Return groups where the specified user is admin.
@@ -189,15 +187,16 @@ async def get_admin_groups(
             detail="Cannot view another user's admin groups",
         )
 
-    groups = await service.get_admin_groups(session, entra_object_id)
-    return GroupListResponse(groups=[GroupResponse.model_validate(g) for g in groups])
+    groups = await service.get_admin_groups(entra_object_id)
+    return GroupListResponse(
+        groups=[GroupResponse.model_validate(g, from_attributes=True) for g in groups]
+    )
 
 
 @router.get("/users/{entra_object_id}/agents", response_model=UserAgentListResponse)
 async def get_user_agents(
     entra_object_id: str,
     user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db_session),
     service: AgentService = Depends(get_agent_service),
     permission_service: PermissionService = Depends(get_permission_service),
 ):
@@ -221,7 +220,6 @@ async def get_user_agents(
     querying_self = user.id == entra_object_id
     try:
         agents = await service.get_user_agents(
-            session,
             entra_object_id,
             is_superadmin=user.is_superadmin and querying_self,
         )

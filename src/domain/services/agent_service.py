@@ -1,15 +1,13 @@
 import logging
 
-from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
+from beanie import PydanticObjectId
 
-from src.domain.models.entities.agent import Agent
+from src.domain.models.entities.agent import AgentDocument
 from src.domain.models.entities.enums import GroupRole
-from src.domain.models.entities.group import Group
-from src.domain.models.entities.group_agent import GroupAgent
-from src.domain.models.entities.group_membership import GroupMembership
-from src.domain.models.entities.user import User
+from src.domain.models.entities.group import GroupDocument
+from src.domain.models.entities.group_agent import GroupAgentDocument
+from src.domain.models.entities.group_membership import GroupMembershipDocument
+from src.domain.models.entities.user import UserDocument
 
 logger = logging.getLogger(__name__)
 
@@ -17,39 +15,38 @@ logger = logging.getLogger(__name__)
 class AgentService:
     async def register_agent(
         self,
-        session: AsyncSession,
         agent_external_id: str,
         name: str,
-        group_id: int,
+        group_id: PydanticObjectId,
         created_by: str,
-    ) -> Agent:
+    ) -> AgentDocument:
         """Register a new agent and assign it to the specified group."""
-        # Verify group exists
-        result = await session.execute(select(Group).where(Group.id == group_id))
-        if result.scalar_one_or_none() is None:
+        if not await GroupDocument.get(group_id):
             raise ValueError("group_not_found")
 
-        agent = Agent(
+        if await AgentDocument.find_one(
+            AgentDocument.agent_external_id == agent_external_id
+        ):
+            raise ValueError("duplicate_agent")
+
+        agent = AgentDocument(
             agent_external_id=agent_external_id,
             name=name,
             created_by=created_by,
         )
-        session.add(agent)
-        try:
-            await session.flush()
-        except IntegrityError:
-            await session.rollback()
-            raise ValueError("duplicate_agent") from None
+        await agent.insert()
 
-        # Assign agent to group
-        group_agent = GroupAgent(
-            group_id=group_id,
-            agent_id=agent.id,
-            added_by=created_by,
-        )
-        session.add(group_agent)
-        await session.commit()
-        await session.refresh(agent)
+        # Compensating delete if GroupAgent insert fails (no transactions)
+        try:
+            group_agent = GroupAgentDocument(
+                group_id=group_id,
+                agent_id=agent.id,
+                added_by=created_by,
+            )
+            await group_agent.insert()
+        except Exception:
+            await agent.delete()
+            raise
 
         logger.info(
             "Registered agent id=%s external_id=%s in group_id=%s",
@@ -61,35 +58,30 @@ class AgentService:
 
     async def assign_agent_to_group(
         self,
-        session: AsyncSession,
-        group_id: int,
-        agent_id: int,
+        group_id: PydanticObjectId,
+        agent_id: PydanticObjectId,
         added_by: str,
-    ) -> GroupAgent:
+    ) -> GroupAgentDocument:
         """Assign an existing agent to an additional group."""
-        # Verify group exists
-        result = await session.execute(select(Group).where(Group.id == group_id))
-        if result.scalar_one_or_none() is None:
+        if not await GroupDocument.get(group_id):
             raise ValueError("group_not_found")
 
-        # Verify agent exists
-        result = await session.execute(select(Agent).where(Agent.id == agent_id))
-        if result.scalar_one_or_none() is None:
+        if not await AgentDocument.get(agent_id):
             raise ValueError("agent_not_found")
 
-        group_agent = GroupAgent(
+        existing = await GroupAgentDocument.find_one(
+            GroupAgentDocument.group_id == group_id,
+            GroupAgentDocument.agent_id == agent_id,
+        )
+        if existing:
+            raise ValueError("duplicate_assignment")
+
+        group_agent = GroupAgentDocument(
             group_id=group_id,
             agent_id=agent_id,
             added_by=added_by,
         )
-        session.add(group_agent)
-        try:
-            await session.commit()
-        except IntegrityError:
-            await session.rollback()
-            raise ValueError("duplicate_assignment") from None
-
-        await session.refresh(group_agent)
+        await group_agent.insert()
         logger.info(
             "Assigned agent_id=%s to group_id=%s",
             agent_id,
@@ -99,63 +91,53 @@ class AgentService:
 
     async def remove_agent_from_group(
         self,
-        session: AsyncSession,
-        group_id: int,
-        agent_id: int,
+        group_id: PydanticObjectId,
+        agent_id: PydanticObjectId,
     ) -> bool:
         """Remove an agent from a group."""
-        result = await session.execute(
-            select(GroupAgent).where(
-                GroupAgent.group_id == group_id,
-                GroupAgent.agent_id == agent_id,
-            )
+        group_agent = await GroupAgentDocument.find_one(
+            GroupAgentDocument.group_id == group_id,
+            GroupAgentDocument.agent_id == agent_id,
         )
-        group_agent = result.scalar_one_or_none()
         if group_agent is None:
             raise ValueError("assignment_not_found")
 
-        await session.delete(group_agent)
-        await session.commit()
+        await group_agent.delete()
         logger.info("Removed agent_id=%s from group_id=%s", agent_id, group_id)
         return True
 
     async def list_agents_in_group(
         self,
-        session: AsyncSession,
-        group_id: int,
-    ) -> list[Agent]:
+        group_id: PydanticObjectId,
+    ) -> list[AgentDocument]:
         """List all agents assigned to a group."""
-        # Verify group exists
-        result = await session.execute(select(Group).where(Group.id == group_id))
-        if result.scalar_one_or_none() is None:
+        if not await GroupDocument.get(group_id):
             raise ValueError("group_not_found")
 
-        result = await session.execute(
-            select(Agent)
-            .join(GroupAgent, GroupAgent.agent_id == Agent.id)
-            .where(GroupAgent.group_id == group_id)
-        )
-        return list(result.scalars().all())
+        gas = await GroupAgentDocument.find(
+            GroupAgentDocument.group_id == group_id
+        ).to_list()
+        agent_ids = [ga.agent_id for ga in gas]
+        if not agent_ids:
+            return []
+        return await AgentDocument.find({"_id": {"$in": agent_ids}}).to_list()
 
     async def get_admin_groups(
         self,
-        session: AsyncSession,
         entra_object_id: str,
-    ) -> list[Group]:
+    ) -> list[GroupDocument]:
         """Return groups where the user has admin role."""
-        result = await session.execute(
-            select(Group)
-            .join(GroupMembership, GroupMembership.group_id == Group.id)
-            .where(
-                GroupMembership.entra_object_id == entra_object_id,
-                GroupMembership.role == GroupRole.ADMIN,
-            )
-        )
-        return list(result.scalars().all())
+        memberships = await GroupMembershipDocument.find(
+            GroupMembershipDocument.entra_object_id == entra_object_id,
+            GroupMembershipDocument.role == GroupRole.ADMIN,
+        ).to_list()
+        group_ids = [m.group_id for m in memberships]
+        if not group_ids:
+            return []
+        return await GroupDocument.find({"_id": {"$in": group_ids}}).to_list()
 
     async def get_user_agents(
         self,
-        session: AsyncSession,
         entra_object_id: str,
         *,
         is_superadmin: bool = False,
@@ -168,50 +150,56 @@ class AgentService:
         Returns a list of dicts with agent fields plus a 'groups' list.
         """
         if is_superadmin:
-            # Superadmins see all agents with all group assignments
-            result = await session.execute(
-                select(Agent, Group.id, Group.name)
-                .join(GroupAgent, GroupAgent.agent_id == Agent.id)
-                .join(Group, Group.id == GroupAgent.group_id)
-                .order_by(Agent.id, Group.id)
-            )
+            gas = await GroupAgentDocument.find_all().to_list()
         else:
-            # Verify user exists
-            user_result = await session.execute(
-                select(User).where(User.entra_object_id == entra_object_id)
-            )
-            if user_result.scalar_one_or_none() is None:
+            if not await UserDocument.find_one(
+                UserDocument.entra_object_id == entra_object_id
+            ):
                 raise ValueError("user_not_found")
 
-            # Regular users see agents from their groups
-            result = await session.execute(
-                select(Agent, Group.id, Group.name)
-                .join(GroupAgent, GroupAgent.agent_id == Agent.id)
-                .join(Group, Group.id == GroupAgent.group_id)
-                .join(
-                    GroupMembership,
-                    GroupMembership.group_id == GroupAgent.group_id,
-                )
-                .where(GroupMembership.entra_object_id == entra_object_id)
-                .order_by(Agent.id, Group.id)
-            )
+            memberships = await GroupMembershipDocument.find(
+                GroupMembershipDocument.entra_object_id == entra_object_id
+            ).to_list()
+            user_group_ids = [m.group_id for m in memberships]
+            if not user_group_ids:
+                return []
 
-        rows = result.all()
+            gas = await GroupAgentDocument.find(
+                {"group_id": {"$in": user_group_ids}}
+            ).to_list()
 
-        # Deduplicate agents and collect their groups
-        agents_map: dict[int, dict] = {}
-        for agent, group_id, group_name in rows:
-            if agent.id not in agents_map:
-                agents_map[agent.id] = {
-                    "id": agent.id,
-                    "agent_external_id": agent.agent_external_id,
-                    "name": agent.name,
-                    "created_by": agent.created_by,
-                    "created_at": agent.created_at,
+        if not gas:
+            return []
+
+        # Fetch all relevant agents and groups
+        agent_ids = list({ga.agent_id for ga in gas})
+        group_ids = list({ga.group_id for ga in gas})
+
+        agents = await AgentDocument.find({"_id": {"$in": agent_ids}}).to_list()
+        groups = await GroupDocument.find({"_id": {"$in": group_ids}}).to_list()
+
+        agent_map = {a.id: a for a in agents}
+        group_map = {g.id: g for g in groups}
+
+        # Assemble agent -> groups mapping
+        agents_out: dict = {}
+        for ga in gas:
+            a = agent_map.get(ga.agent_id)
+            g = group_map.get(ga.group_id)
+            if a is None or g is None:
+                continue
+            aid = str(a.id)
+            if aid not in agents_out:
+                agents_out[aid] = {
+                    "id": str(a.id),
+                    "agent_external_id": a.agent_external_id,
+                    "name": a.name,
+                    "created_by": a.created_by,
+                    "created_at": a.created_at,
                     "groups": [],
                 }
-            group_entry = {"group_id": group_id, "group_name": group_name}
-            if group_entry not in agents_map[agent.id]["groups"]:
-                agents_map[agent.id]["groups"].append(group_entry)
+            group_entry = {"group_id": str(g.id), "group_name": g.name}
+            if group_entry not in agents_out[aid]["groups"]:
+                agents_out[aid]["groups"].append(group_entry)
 
-        return list(agents_map.values())
+        return list(agents_out.values())

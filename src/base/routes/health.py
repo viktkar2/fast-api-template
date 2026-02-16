@@ -2,7 +2,6 @@ import logging
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
-from sqlalchemy import text
 
 router = APIRouter(tags=["Health"], prefix="")
 logger = logging.getLogger(__name__)
@@ -16,10 +15,9 @@ async def health(request: Request):
     """
     result = {"status": "Healthy", "message": "Service is up and running."}
 
-    if hasattr(request.app.state, "db_engine"):
+    if hasattr(request.app.state, "db_client"):
         try:
-            async with request.app.state.db_engine.connect() as conn:
-                await conn.execute(text("SELECT 1"))
+            await request.app.state.db_client.admin.command("ping")
             result["database"] = "connected"
         except Exception:
             logger.exception("Database health check failed")

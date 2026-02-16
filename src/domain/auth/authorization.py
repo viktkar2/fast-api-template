@@ -8,14 +8,12 @@
 
 import logging
 
-from fastapi import Depends, HTTPException, Request, status
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from beanie import PydanticObjectId
+from fastapi import HTTPException, Request, status
 
-from src.base.core.dependencies import get_db_session
 from src.base.models.user import User
 from src.domain.models.entities.enums import GroupRole
-from src.domain.models.entities.group_membership import GroupMembership
+from src.domain.models.entities.group_membership import GroupMembershipDocument
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +43,6 @@ def require_group_admin(group_id_param: str = "group_id"):
 
     async def dependency(
         request: Request,
-        session: AsyncSession = Depends(get_db_session),
     ) -> User:
         user: User | None = getattr(request.state, "user", None)
         if user is None:
@@ -57,21 +54,26 @@ def require_group_admin(group_id_param: str = "group_id"):
         if user.is_superadmin:
             return user
 
-        group_id = request.path_params.get(group_id_param)
-        if group_id is None:
+        group_id_str = request.path_params.get(group_id_param)
+        if group_id_str is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Missing path parameter: {group_id_param}",
             )
 
-        result = await session.execute(
-            select(GroupMembership).where(
-                GroupMembership.entra_object_id == user.id,
-                GroupMembership.group_id == int(group_id),
-                GroupMembership.role == GroupRole.ADMIN,
-            )
+        try:
+            group_oid = PydanticObjectId(group_id_str)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Invalid group_id format",
+            ) from exc
+
+        membership = await GroupMembershipDocument.find_one(
+            GroupMembershipDocument.entra_object_id == user.id,
+            GroupMembershipDocument.group_id == group_oid,
+            GroupMembershipDocument.role == GroupRole.ADMIN,
         )
-        membership = result.scalar_one_or_none()
 
         if membership is None:
             raise HTTPException(

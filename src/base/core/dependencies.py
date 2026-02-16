@@ -1,8 +1,6 @@
 import logging
-from collections.abc import AsyncGenerator
 
 from fastapi import Depends, Request
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.base.models.user import User
 from src.domain.services.admin_service import AdminService
@@ -45,22 +43,14 @@ def get_user_service(request: Request) -> UserService:
     return request.app.state.user_service
 
 
-async def get_db_session(request: Request) -> AsyncGenerator[AsyncSession]:
-    """Yield a database session from the app-level session factory."""
-    async with request.app.state.db_session_factory() as session:
-        yield session
-
-
 async def get_current_user(
     request: Request,
-    session: AsyncSession = Depends(get_db_session),
     user_service: UserService = Depends(get_user_service),
 ) -> User:
     """Read the authenticated user from request state and upsert into the DB."""
     user: User = request.state.user
 
     await user_service.upsert_user(
-        session=session,
         entra_object_id=user.id,
         display_name=user.name or "",
         email=user.email or "",
